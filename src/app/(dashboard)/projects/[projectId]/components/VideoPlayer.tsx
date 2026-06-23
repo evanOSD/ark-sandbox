@@ -1,5 +1,5 @@
 import React from "react";
-import { Film, Pause, Play, Square, Music } from "lucide-react";
+import { Film, Pause, Play, Square, Music, Maximize } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Project } from "../ProjectClient";
 
@@ -31,6 +31,34 @@ export function VideoPlayer({
   handleToggleMne,
 }: VideoPlayerProps) {
   const audioSources = project.templates?.audio_sources || [];
+
+  const togglePictureInPicture = async () => {
+    const video = videoRef.current;
+    if (!video) return;
+    try {
+      if (document.pictureInPictureElement === video) {
+        await document.exitPictureInPicture();
+      } else {
+        await video.requestPictureInPicture();
+      }
+    } catch (error) {
+      console.error("Failed to toggle Picture-in-Picture:", error);
+    }
+  };
+
+  const toggleFullscreen = async () => {
+    const video = videoRef.current;
+    if (!video) return;
+    try {
+      if (document.fullscreenElement === video) {
+        await document.exitFullscreen();
+      } else {
+        await video.requestFullscreen();
+      }
+    } catch (error) {
+      console.error("Failed to toggle fullscreen:", error);
+    }
+  };
 
   return (
     <div className="bg-black relative flex flex-col justify-between overflow-hidden border-b border-zinc-800 h-[50%] shrink-0">
@@ -67,9 +95,23 @@ export function VideoPlayer({
 
       {/* Video Controls Bar */}
       <div className="h-10 bg-zinc-900 border-t border-zinc-850 flex items-center gap-3 px-3 shrink-0 select-none">
-        <div className="flex items-center text-zinc-500">
+        <button
+          type="button"
+          onClick={togglePictureInPicture}
+          className="h-7 w-7 text-zinc-400 hover:text-white border border-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-800 transition-colors shrink-0"
+          title="Toggle Picture-in-Picture"
+        >
           <Film className="h-4 w-4" />
-        </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="h-7 w-7 text-zinc-400 hover:text-white border border-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-800 transition-colors shrink-0"
+          title="Fullscreen"
+        >
+          <Maximize className="h-3.5 w-3.5" />
+        </button>
 
         <button
           type="button"
@@ -119,11 +161,11 @@ export function VideoPlayer({
           >
             {audioSources.map((source) => (
               <option key={source.name} value={source.url}>
-                {source.name.endsWith('.wav') ? source.name : `${source.name}.wav`}
+                {source.name.replace(/\.wav$/i, '')}
               </option>
             ))}
             {audioSources.length === 0 && (
-              <option value="">default_audio.wav</option>
+              <option value="">default_audio</option>
             )}
           </select>
         </div>

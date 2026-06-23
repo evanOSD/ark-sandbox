@@ -8,7 +8,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { updateRecordingStatus, deleteRecording } from "./actions";
+import { updateRecordingStatus, deleteRecording, saveTranslationText } from "./actions";
 import { VideoPlayer } from "./components/VideoPlayer";
 import { NotesPanel } from "./components/NotesPanel";
 import { WorkspaceTabs } from "./components/WorkspaceTabs";
@@ -28,6 +28,7 @@ export interface Recording {
   status: "pending" | "recorded" | "approved";
   recorded_by_user?: { username: string } | null;
   created_at: string;
+  translated_text?: string | null;
 }
 
 export interface Loop {
@@ -38,6 +39,10 @@ export interface Loop {
   end_time_ms: number;
   key_terms: KeyTerm[];
   recording?: Recording | null;
+  script_text_1: string | null;
+  script_text_2: string | null;
+  script_text_3: string | null;
+  script_text_4: string | null;
 }
 
 export interface Scene {
@@ -75,60 +80,26 @@ export interface Note {
   loopName: string;
 }
 
-// Define structured mock texts from the screenshot for template loops
-const MOCK_LOOP_TEXTS: Record<string, { speaker: string; lineNum: number; text: string; note?: string }> = {
-  "PT-01": {
-    speaker: "OG01",
-    lineNum: 1,
-    text: "In the beginning, God created the world. He created the sky and the earth and everything in them. [When we look at all that God has made, it is amazing.]"
-  },
-  "PT-02": {
-    speaker: "OG01",
-    lineNum: 2,
-    text: "Everything God made was good. Everything reveals his [greatness and] goodness and power."
-  },
-  "PT-03": {
-    speaker: "OG02",
-    lineNum: 1,
-    text: "God created all the different kinds of plants and animals."
-  },
-  "PT-04": {
-    speaker: "OG02",
-    lineNum: 2,
-    text: "Then he formed the first man from the soil (1) he breathed into his nostrils and gave him life(2).",
-    note: "(1) OR: He took soil from the ground and made the first man. (2) OR He breathed into his nostrils and caused him to live"
-  },
-  "PT-05": {
-    speaker: "OG02",
-    lineNum: 3,
-    text: "The first man was called Adam."
-  },
-  "PT-06": {
-    speaker: "OG03",
-    lineNum: 1,
-    text: "Then God created a woman(1) to be Adam's wife and companion. She was called Eve. [God created the man and the woman(2) so that they could enjoy a close relationship(3) with him.(4)] They lived with happiness in his presence in a beautiful garden(5) [called Eden(6)]. There was no suffering and no death.",
-    note: "(1) OR: the first woman (2) OR Adam and Eve (3) OR in his likeness OR: to resemble himself [Be careful not to imply that human beings would be exactly the same as God.] (4) OR: fellowship OR: communion (5) OR: so that they could live in friendship with him OR: so that they could walk together with him. (In some languages, walk with implies 'relationship'.) (6) OR place (7) OR: in the place he had prepared for them"
-  },
-  "PT-07": {
-    speaker: "OG03",
-    lineNum: 2,
-    text: "This is another line for PT-07."
-  }
-};
 
 export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) {
-  // Sort scenes
-  const sortedScenes = [...scenes].sort((a, b) => a.sequence_number - b.sequence_number);
-  sortedScenes.forEach((s) => {
-    s.loops = [...s.loops].sort((a, b) => a.sequence_number - b.sequence_number);
-  });
-
   // State
+  const [localScenes, setLocalScenes] = useState<Scene[]>(scenes);
   const [activeTab, setActiveTab] = useState<"draft" | "keyTerms" | "transcribe" | "backTranslate" | "consult">("draft");
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
+  const [prevScenes, setPrevScenes] = useState<Scene[]>(scenes);
+  if (scenes !== prevScenes) {
+    setPrevScenes(scenes);
+    setLocalScenes(scenes);
+  }
+  const sortedScenes = [...localScenes].sort((a, b) => a.sequence_number - b.sequence_number);
+  sortedScenes.forEach((s) => {
+    s.loops = [...s.loops].sort((a, b) => a.sequence_number - b.sequence_number);
+  });
 
   // Video states
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -453,6 +424,57 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
     }
   };
 
+  // Auto-save translation handler
+  const handleSaveTranslation = async (loopId: string, text: string) => {
+    // Check if anything actually changed
+    let oldText = "";
+    for (const s of localScenes) {
+      const l = s.loops.find(lp => lp.id === loopId);
+      if (l) {
+        oldText = l.recording?.translated_text || "";
+        break;
+      }
+    }
+    if (oldText === text) return; // No change, skip save
+
+    setSaveStatus("saving");
+
+    // Optimistic Update
+    setLocalScenes(prevScenes => prevScenes.map(s => ({
+      ...s,
+      loops: s.loops.map(l => {
+        if (l.id === loopId) {
+          const rec = l.recording;
+          return {
+            ...l,
+            recording: rec 
+              ? { ...rec, translated_text: text }
+              : {
+                  id: `temp-rec-${loopId}`,
+                  recorded_audio_url: "",
+                  status: "pending" as const,
+                  created_at: new Date().toISOString(),
+                  translated_text: text
+                }
+          };
+        }
+        return l;
+      })
+    })));
+
+    try {
+      await saveTranslationText(project.id, loopId, text);
+      setSaveStatus("saved");
+      setLastSavedTime(new Date().toTimeString().split(' ')[0]);
+    } catch (err) {
+      console.error(err);
+      setSaveStatus("idle");
+      alert(err instanceof Error ? err.message : "Gagal menyimpan terjemahan");
+      // Rollback optimistic update
+      setLocalScenes(scenes);
+    }
+  };
+
   // Add Comment/Note
   const handleAddNote = (e: React.FormEvent) => {
     e.preventDefault();
@@ -470,23 +492,20 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
     setNewNoteText("");
   };
 
-  // Map loops to display text from mock data
+  // Map loops to display text based on selected audio source
   const loopsWithDisplay = (activeScene?.loops || []).map((loop) => {
-    if (MOCK_LOOP_TEXTS[loop.name]) {
-      return { loop, ...MOCK_LOOP_TEXTS[loop.name] };
-    }
-    const ptMatch = loop.name.match(/PT-0?(\d+)/i);
-    if (ptMatch) {
-      const num = parseInt(ptMatch[1], 10);
-      const mockKey = `PT-${String(num).padStart(2, "0")}`;
-      if (MOCK_LOOP_TEXTS[mockKey]) {
-        return { loop, ...MOCK_LOOP_TEXTS[mockKey] };
-      }
-    }
+    // Determine active audio index (0 for audio_url_1, 1 for audio_url_2, etc.)
+    const activeAudioIndex = audioSources.findIndex((src) => src.url === activeAudioUrl);
+    let dbText: string | null = null;
+    if (activeAudioIndex === 0) dbText = loop.script_text_1;
+    else if (activeAudioIndex === 1) dbText = loop.script_text_2;
+    else if (activeAudioIndex === 2) dbText = loop.script_text_3;
+    else if (activeAudioIndex === 3) dbText = loop.script_text_4;
+    else dbText = loop.script_text_1;
 
     return {
       loop,
-      text: `Rujukan teks draf untuk ${loop.name}.`,
+      text: dbText || `Teks draf belum terisi untuk ${loop.name}.`,
       note: undefined as string | undefined,
     };
   });
@@ -539,8 +558,27 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
           </div>
         )}
 
-        {/* Right side info (removed S/R Status) */}
-        <div className="w-12 h-4 shrink-0" />
+        {/* Right side: Global Save Status Info */}
+        <div className="flex items-center gap-1.5 text-[10px] text-zinc-400 select-none font-medium pr-1">
+          {saveStatus === "saving" && (
+            <>
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-550 animate-pulse" />
+              <span className="text-amber-555 font-semibold animate-pulse">Menyimpan...</span>
+            </>
+          )}
+          {saveStatus === "saved" && (
+            <>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-555" />
+              <span className="text-emerald-555 font-semibold">Tersimpan {lastSavedTime}</span>
+            </>
+          )}
+          {saveStatus === "idle" && (
+            <>
+              <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
+              <span>{lastSavedTime ? `Tersimpan ${lastSavedTime}` : "Semua tersimpan"}</span>
+            </>
+          )}
+        </div>
       </header>
 
       {/* 2. Main split container */}
@@ -600,6 +638,9 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                   isLoading={isLoading}
                   handleStatusChange={handleStatusChange}
                   handleDeleteRecording={handleDeleteRecording}
+                  activeAudioUrl={activeAudioUrl}
+                  setActiveAudioUrl={setActiveAudioUrl}
+                  handleSaveTranslation={handleSaveTranslation}
                 />
               )}
 

@@ -11,6 +11,7 @@ interface RawRecording {
   template_loop_id: string;
   recorded_audio_url: string;
   status: "pending" | "recorded" | "approved";
+  translated_text: string | null;
   created_at: string;
   recorded_by_user: { username: string } | null;
 }
@@ -31,6 +32,10 @@ interface RawTemplateLoop {
   sequence_number: number;
   start_time_ms: number;
   end_time_ms: number;
+  script_text_1: string | null;
+  script_text_2: string | null;
+  script_text_3: string | null;
+  script_text_4: string | null;
   loop_key_terms: RawLoopKeyTerm[] | null;
 }
 
@@ -135,7 +140,7 @@ export default async function ProjectDetailsPage({ params }: PageProps) {
   // Fetch all recordings for this project
   const { data: recordings } = await supabase
     .from("recordings")
-    .select("id, template_loop_id, recorded_audio_url, status, created_at, recorded_by_user:users(username)")
+    .select("id, template_loop_id, recorded_audio_url, status, translated_text, created_at, recorded_by_user:users(username)")
     .eq("project_id", projectId);
 
   // Fetch scenes, loops and key terms for the linked template
@@ -151,6 +156,10 @@ export default async function ProjectDetailsPage({ params }: PageProps) {
         sequence_number,
         start_time_ms,
         end_time_ms,
+        script_text_1,
+        script_text_2,
+        script_text_3,
+        script_text_4,
         loop_key_terms (
           key_terms (
             id,
@@ -175,6 +184,10 @@ export default async function ProjectDetailsPage({ params }: PageProps) {
         sequence_number: loop.sequence_number,
         start_time_ms: loop.start_time_ms,
         end_time_ms: loop.end_time_ms,
+        script_text_1: loop.script_text_1,
+        script_text_2: loop.script_text_2,
+        script_text_3: loop.script_text_3,
+        script_text_4: loop.script_text_4,
         key_terms: (loop.loop_key_terms || [])
           .map((lkt: RawLoopKeyTerm) => lkt.key_terms)
           .filter(Boolean) as unknown as KeyTerm[],
@@ -182,6 +195,7 @@ export default async function ProjectDetailsPage({ params }: PageProps) {
           id: rec.id,
           recorded_audio_url: rec.recorded_audio_url,
           status: rec.status,
+          translated_text: rec.translated_text,
           recorded_by_user: rec.recorded_by_user,
           created_at: rec.created_at,
         } : null,

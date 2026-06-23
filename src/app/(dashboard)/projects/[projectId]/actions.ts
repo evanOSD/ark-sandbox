@@ -82,3 +82,49 @@ export async function updateProject(projectId: string, name: string, description
   revalidatePath(`/projects/${projectId}`)
   revalidatePath('/projects')
 }
+
+export async function saveTranslationText(projectId: string, loopId: string, text: string) {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Anda harus login terlebih dahulu')
+  }
+
+  // Cek apakah sudah ada rekaman untuk loop ini di project ini
+  const { data: existingRec } = await supabase
+    .from('recordings')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('template_loop_id', loopId)
+    .maybeSingle()
+
+  if (existingRec) {
+    // Update existing row
+    const { error } = await supabase
+      .from('recordings')
+      .update({
+        translated_text: text || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existingRec.id)
+
+    if (error) throw new Error(error.message)
+  } else {
+    // Insert new row
+    const { error } = await supabase.from('recordings').insert({
+      project_id: projectId,
+      template_loop_id: loopId,
+      translated_text: text || null,
+      recorded_by: user.id,
+      status: 'pending',
+    })
+
+    if (error) throw new Error(error.message)
+  }
+
+  revalidatePath(`/projects/${projectId}`)
+}
