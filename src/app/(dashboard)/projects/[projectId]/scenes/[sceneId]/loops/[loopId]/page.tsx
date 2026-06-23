@@ -66,6 +66,18 @@ export default async function LoopWorkspacePage({ params }: PageProps) {
     }
   }
 
+  // Fetch loop details belonging to this scene first to get script texts
+  const { data: loop } = await supabase
+    .from("template_loops")
+    .select("id, name, sequence_number, start_time_ms, end_time_ms, script_text_1, script_text_2, script_text_3, script_text_4")
+    .eq("id", loopId)
+    .eq("scene_id", sceneId)
+    .maybeSingle();
+
+  if (!loop) {
+    redirect(`/projects/${projectId}`);
+  }
+
   // Fetch project & template details
   const { data: rawProject } = await supabase
     .from("projects")
@@ -77,7 +89,7 @@ export default async function LoopWorkspacePage({ params }: PageProps) {
     redirect("/projects");
   }
 
-  // Format template info
+  // Format template info with corresponding script texts
   const t = rawProject.templates as unknown as {
     video_url: string | null;
     audio_url_1: string | null;
@@ -90,19 +102,19 @@ export default async function LoopWorkspacePage({ params }: PageProps) {
     audio_label_4: string | null;
     mne_audio_url: string | null;
   };
-  const audio_sources: Array<{ name: string; url: string }> = [];
+  const audio_sources: Array<{ name: string; url: string; script_text: string | null }> = [];
   if (t) {
     if (t.audio_url_1) {
-      audio_sources.push({ name: t.audio_label_1 || "TB", url: t.audio_url_1 });
+      audio_sources.push({ name: t.audio_label_1 || "TB", url: t.audio_url_1, script_text: loop.script_text_1 });
     }
     if (t.audio_url_2) {
-      audio_sources.push({ name: t.audio_label_2 || "BIMK", url: t.audio_url_2 });
+      audio_sources.push({ name: t.audio_label_2 || "BIMK", url: t.audio_url_2, script_text: loop.script_text_2 });
     }
     if (t.audio_url_3) {
-      audio_sources.push({ name: t.audio_label_3 || "Audio 3", url: t.audio_url_3 });
+      audio_sources.push({ name: t.audio_label_3 || "Audio 3", url: t.audio_url_3, script_text: loop.script_text_3 });
     }
     if (t.audio_url_4) {
-      audio_sources.push({ name: t.audio_label_4 || "Audio 4", url: t.audio_url_4 });
+      audio_sources.push({ name: t.audio_label_4 || "Audio 4", url: t.audio_url_4, script_text: loop.script_text_4 });
     }
   }
 
@@ -125,18 +137,6 @@ export default async function LoopWorkspacePage({ params }: PageProps) {
     .maybeSingle();
 
   if (!scene) {
-    redirect(`/projects/${projectId}`);
-  }
-
-  // Fetch loop details belonging to this scene
-  const { data: loop } = await supabase
-    .from("template_loops")
-    .select("id, name, sequence_number, start_time_ms, end_time_ms")
-    .eq("id", loopId)
-    .eq("scene_id", sceneId)
-    .maybeSingle();
-
-  if (!loop) {
     redirect(`/projects/${projectId}`);
   }
 
@@ -186,25 +186,30 @@ export default async function LoopWorkspacePage({ params }: PageProps) {
   // Fetch existing main recording for this loop in this project
   const { data: recording } = await supabase
     .from("recordings")
-    .select("recorded_audio_url")
+    .select("recorded_audio_url, translated_text")
     .eq("project_id", projectId)
     .eq("template_loop_id", loopId)
     .maybeSingle();
 
-  const formattedLoop: Loop = {
+  const formattedLoop = {
     id: loop.id,
     name: loop.name,
     sequence_number: loop.sequence_number,
     start_time_ms: loop.start_time_ms,
     end_time_ms: loop.end_time_ms,
+    script_text_1: loop.script_text_1,
+    script_text_2: loop.script_text_2,
+    script_text_3: loop.script_text_3,
+    script_text_4: loop.script_text_4,
     key_terms: formattedKeyTerms as unknown as KeyTerm[],
   };
 
   return (
     <WorkspaceClient
       project={project as unknown as Project}
-      loop={formattedLoop}
+      loop={formattedLoop as unknown as Loop}
       existingRecordingUrl={recording?.recorded_audio_url || null}
+      existingTranslationText={recording?.translated_text || null}
     />
   );
 }

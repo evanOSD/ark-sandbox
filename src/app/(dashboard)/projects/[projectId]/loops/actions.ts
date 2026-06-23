@@ -37,13 +37,17 @@ export async function saveRecording(projectId: string, loopId: string, formData:
     throw new Error('Anda harus login terlebih dahulu')
   }
 
-  const audioFile = formData.get('audio') as File
-  if (!audioFile) {
-    throw new Error('File audio tidak ditemukan')
-  }
+  const audioUrlParam = formData.get('audio_url') as string | null
+  const audioFile = formData.get('audio') as File | null
 
-  // 1. Simpan file audio secara lokal
-  const audioUrl = await saveAudioFileLocally(audioFile, `loop-${loopId}`)
+  let audioUrl = ''
+  if (audioUrlParam) {
+    audioUrl = audioUrlParam
+  } else if (audioFile && audioFile.size > 0) {
+    audioUrl = await saveAudioFileLocally(audioFile, `loop-${loopId}`)
+  } else {
+    throw new Error('File audio atau URL tidak ditemukan')
+  }
 
   // 2. Cek apakah sudah ada rekaman untuk loop ini di project ini
   const { data: existingRec } = await supabase

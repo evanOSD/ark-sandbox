@@ -5,20 +5,26 @@ export class WavRecorder {
   private stream: MediaStream | null = null;
   private leftchannel: Float32Array[] = [];
   private recordingLength = 0;
-  private sampleRate = 44100;
+  private sampleRate = 48000;
 
   constructor() {}
 
-  async start() {
+  async start(options?: { echoCancellation?: boolean; noiseSuppression?: boolean; autoGainControl?: boolean }) {
     this.leftchannel = [];
     this.recordingLength = 0;
     
-    // Request microphone access
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Request microphone access with constraints (defaults to raw audio)
+    this.stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: options?.echoCancellation ?? false,
+        noiseSuppression: options?.noiseSuppression ?? false,
+        autoGainControl: options?.autoGainControl ?? false,
+      }
+    });
     
     const AudioContextClass = window.AudioContext || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    this.audioContext = new AudioContextClass();
-    this.sampleRate = this.audioContext.sampleRate;
+    this.audioContext = new AudioContextClass({ sampleRate: 48000 });
+    this.sampleRate = 48000;
 
     this.micNode = this.audioContext.createMediaStreamSource(this.stream);
     
@@ -56,13 +62,13 @@ export class WavRecorder {
     }
 
     // Create WAV ArrayBuffer
-    const buffer = new ArrayBuffer(44 + this.recordingLength * 2);
+    const buffer = new ArrayBuffer(44 + this.recordingLength * 3);
     const view = new DataView(buffer);
 
     /* RIFF identifier */
     this.writeString(view, 0, 'RIFF');
     /* file length */
-    view.setUint32(4, 36 + this.recordingLength * 2, true);
+    view.setUint32(4, 36 + this.recordingLength * 3, true);
     /* RIFF type */
     this.writeString(view, 8, 'WAVE');
     /* format chunk identifier */
@@ -76,23 +82,29 @@ export class WavRecorder {
     /* sample rate */
     view.setUint32(24, this.sampleRate, true);
     /* byte rate (sample rate * block align) */
-    view.setUint32(28, this.sampleRate * 2, true);
+    view.setUint32(28, this.sampleRate * 3, true);
     /* block align (channel count * bytes per sample) */
-    view.setUint16(32, 2, true);
-    /* bits per sample (16 bits) */
-    view.setUint16(34, 16, true);
+    view.setUint16(32, 3, true);
+    /* bits per sample (24 bits) */
+    view.setUint16(34, 24, true);
     /* data chunk identifier */
     this.writeString(view, 36, 'data');
     /* data chunk length */
-    view.setUint32(40, this.recordingLength * 2, true);
+    view.setUint32(40, this.recordingLength * 3, true);
 
     // Write PCM audio samples
     let index = 44;
     for (let i = 0; i < result.length; i++) {
-      // Clamp value to prevent clipping
-      const s = Math.max(-1, Math.min(1, result[i]));
-      view.setInt16(index, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-      index += 2;
+      // Clamp value
+      let s = Math.max(-1, Math.min(1, result[i]));
+      // Konversi Float32 (-1.0 s/d 1.0) menjadi Int24 (-8388608 s/d 8388607)
+      s = s < 0 ? s * 0x800000 : s * 0x7FFFFF;
+      s = Math.round(s);
+      // Tulis 3 bytes (Little Endian)
+      view.setUint8(index, s & 0xFF);
+      view.setUint8(index + 1, (s >> 8) & 0xFF);
+      view.setUint8(index + 2, (s >> 16) & 0xFF);
+      index += 3;
     }
 
     return new Blob([view], { type: 'audio/wav' });
