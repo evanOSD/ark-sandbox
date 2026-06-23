@@ -117,7 +117,7 @@ export function VideoPlayer({
           type="button"
           onClick={toggleVideoPlayback}
           className="h-7 w-7 text-zinc-300 hover:text-white border border-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-800 transition-colors shrink-0"
-          title={isVideoPlaying ? "Pause" : "Play"}
+          title={isVideoPlaying ? "Pause" : "Play Scene"}
         >
           {isVideoPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-zinc-300 ml-0.5" />}
         </button>
