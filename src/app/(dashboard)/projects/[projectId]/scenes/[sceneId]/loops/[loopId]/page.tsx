@@ -209,7 +209,6 @@ export default async function LoopWorkspacePage({ params }: PageProps) {
       project={project as unknown as Project}
       loop={formattedLoop as unknown as Loop}
       existingRecordingUrl={recording?.recorded_audio_url || null}
-      existingTranslationText={recording?.translated_text || null}
     />
   );
 }

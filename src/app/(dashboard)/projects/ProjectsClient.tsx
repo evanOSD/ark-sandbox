@@ -53,8 +53,8 @@ export function ProjectsClient({
         )}
       </div>
 
-      {/* Projects Table */}
-      <div className="overflow-x-auto rounded-xl border border-border/50 bg-background/50 backdrop-blur-md shadow-lg">
+      {/* Table container with full-width responsive scroll */}
+      <div className="overflow-x-auto rounded-xl border border-border/50 bg-background shadow-lg">
         <table className="w-full border-collapse text-left text-sm text-muted-foreground">
           <thead className="bg-muted/40 text-xs font-semibold uppercase tracking-wider text-foreground border-b border-border/40">
             <tr>

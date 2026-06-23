@@ -434,13 +434,13 @@ export function WorkspaceClient({ project, loop, existingRecordingUrl }: Workspa
       <div className="grid gap-6 lg:grid-cols-12">
         {/* Left Column: Native Player */}
         <div className="lg:col-span-7 space-y-4">
-          <Card className="overflow-hidden bg-zinc-950 border-zinc-800 text-white p-4">
+          <Card className="overflow-hidden bg-background border-border text-foreground p-4">
             {/* Audio selector tabs */}
             {(hasMultipleAudio || project.templates.mne_audio_url) && (
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-3 bg-zinc-900/40 p-2.5 rounded-lg border border-zinc-850">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3 bg-muted/40 p-2.5 rounded-lg border border-border">
                 {hasMultipleAudio && (
                   <div className="flex flex-wrap gap-2">
-                    <span className="text-xs text-zinc-400 self-center">Sumber Audio:</span>
+                    <span className="text-xs text-muted-foreground self-center">Sumber Audio:</span>
                     <div className="flex flex-wrap gap-1.5">
                       {audioSources.map((source) => (
                         <Button
@@ -463,7 +463,7 @@ export function WorkspaceClient({ project, loop, existingRecordingUrl }: Workspa
 
                 {project.templates.mne_audio_url && (
                   <div className="flex items-center gap-2 ml-auto">
-                    <span className="text-xs text-zinc-400 self-center">M&E Track:</span>
+                    <span className="text-xs text-muted-foreground self-center">M&E Track:</span>
                     <Button
                       type="button"
                       variant={isMneEnabled ? "default" : "outline"}
@@ -472,8 +472,8 @@ export function WorkspaceClient({ project, loop, existingRecordingUrl }: Workspa
                       className={cn(
                         "h-8 text-xs font-semibold px-3",
                         isMneEnabled
-                          ? "bg-amber-600 hover:bg-amber-700 text-white border-transparent"
-                          : "border-zinc-800 text-zinc-450 hover:text-white"
+                          ? "bg-amber-600 hover:bg-amber-700 text-foreground border-transparent"
+                          : "border-border text-muted-foreground hover:text-foreground"
                       )}
                     >
                       <Music className="w-3.5 h-3.5 mr-1" />
@@ -485,7 +485,7 @@ export function WorkspaceClient({ project, loop, existingRecordingUrl }: Workspa
             )}
 
             {/* Video / Audio Player Container */}
-            <div className="bg-black flex flex-col items-center justify-center min-h-[300px] rounded-lg overflow-hidden border border-zinc-800 relative">
+            <div className="bg-black flex flex-col items-center justify-center min-h-[300px] rounded-lg overflow-hidden border border-border relative">
               {project.templates.video_url ? (
                 <video
                   ref={videoRef}
@@ -500,7 +500,7 @@ export function WorkspaceClient({ project, loop, existingRecordingUrl }: Workspa
                   playsInline
                 />
               ) : (
-                <div className="flex flex-col items-center gap-2 text-zinc-500 py-12">
+                <div className="flex flex-col items-center gap-2 text-muted-foreground py-12">
                   <Film className="h-12 w-12 stroke-[1.5]" />
                   <span className="text-sm">Video tidak tersedia. Menggunakan pemutar audio.</span>
                 </div>
@@ -513,7 +513,7 @@ export function WorkspaceClient({ project, loop, existingRecordingUrl }: Workspa
                   src={activeAudioUrl}
                   onTimeUpdate={!project.templates.video_url ? handleTimeUpdate : undefined}
                   controls={!project.templates.video_url}
-                  className={!project.templates.video_url ? "w-full p-2 bg-zinc-900 border-t border-zinc-800" : "hidden"}
+                  className={!project.templates.video_url ? "w-full p-2 bg-muted border-t border-border" : "hidden"}
                 />
               )}
 
@@ -556,7 +556,7 @@ export function WorkspaceClient({ project, loop, existingRecordingUrl }: Workspa
               <div className="border rounded-xl p-8 bg-muted/30 flex flex-col items-center justify-center relative min-h-[140px] text-center border-dashed">
                 {isRecording ? (
                   <div className="space-y-3">
-                    <div className="w-12 h-12 bg-red-500 text-white rounded-full flex items-center justify-center animate-ping mx-auto duration-1000">
+                    <div className="w-12 h-12 bg-red-500 text-foreground rounded-full flex items-center justify-center animate-ping mx-auto duration-1000">
                       <Mic className="w-6 h-6" />
                     </div>
                     <div className="font-semibold text-red-500 text-sm animate-pulse">Sedang Merekam Suara...</div>
@@ -575,7 +575,7 @@ export function WorkspaceClient({ project, loop, existingRecordingUrl }: Workspa
                     )}
                   </div>
                 ) : (
-                  <div className="text-zinc-400 space-y-1">
+                  <div className="text-muted-foreground space-y-1">
                     <Mic className="w-8 h-8 mx-auto stroke-[1.2] mb-1 text-muted-foreground" />
                     <p className="text-sm font-medium text-foreground">Siap Merekam</p>
                     <p className="text-xs">Klik tombol &quot;Mulai Rekam&quot; di bawah</p>
@@ -590,7 +590,7 @@ export function WorkspaceClient({ project, loop, existingRecordingUrl }: Workspa
                   <Square className="w-4 h-4 fill-white" /> Selesai Perekaman
                 </Button>
               ) : (
-                <Button className="w-full font-semibold gap-2 h-10 bg-red-600 hover:bg-red-700 text-white shadow-sm" onClick={startMainRecording}>
+                <Button className="w-full font-semibold gap-2 h-10 bg-red-600 hover:bg-red-700 text-foreground shadow-sm" onClick={startMainRecording}>
                   <Mic className="w-4 h-4" /> Mulai Rekam
                 </Button>
               )}

@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin, { Region } from "wavesurfer.js/dist/plugins/regions.js";
-import { Mic, Square, Check, Loader2, Play, Pause, Trash2, Scissors, Upload, RotateCcw, Volume2, Sliders } from "lucide-react";
+import TimelinePlugin from "wavesurfer.js/dist/plugins/timeline.js";
+import RecordPlugin from "wavesurfer.js/dist/plugins/record.js";
+import HoverPlugin from "wavesurfer.js/dist/plugins/hover.js";
+import { Square, Loader2, Play, Pause, Trash2, Scissors, Upload, Sliders, BookOpen, Volume2, X, Volume1, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { WavRecorder } from "@/lib/wav-recorder";
 import { getCloudinaryConfig } from "@/app/(dashboard)/templates/actions";
 import { saveRecording } from "../../../../../loops/actions";
-import { saveTranslationText } from "../../../../../actions";
 import { saveLocalRecording, getLocalRecording, clearLocalRecording } from "@/lib/indexeddb";
 import { Project, Loop } from "../WorkspaceClient";
 
@@ -70,6 +72,13 @@ function encodeWav24Bit(samples: Float32Array, sampleRate: number): Blob {
   return new Blob([view], { type: "audio/wav" });
 }
 
+// Helper to create a silent WAV Blob of specific duration
+function createSilentWavBlob(durationSeconds: number, sampleRate: number = 48000): Blob {
+  const numSamples = Math.floor(durationSeconds * sampleRate);
+  const floatData = new Float32Array(numSamples);
+  return encodeWav24Bit(floatData, sampleRate);
+}
+
 // Function to load, slice, and set reference audio on Wavesurfer to loop segment boundaries
 async function loadAndSliceReferenceAudio(
   url: string,
@@ -126,17 +135,19 @@ interface AudioEditorProps {
   project: Project;
   loop: Loop;
   existingRecordingUrl: string | null;
-  existingTranslationText: string | null;
-  children?: React.ReactNode;
+  isKeyTermsOpen: boolean;
+  onToggleKeyTerms: () => void;
 }
 
 export default function AudioEditor({
   project,
   loop,
   existingRecordingUrl,
-  existingTranslationText,
-  children,
+  isKeyTermsOpen,
+  onToggleKeyTerms,
 }: AudioEditorProps) {
+  const router = useRouter();
+
   // DOM container refs
   const refContainerRef = useRef<HTMLDivElement | null>(null);
   const recContainerRef = useRef<HTMLDivElement | null>(null);
@@ -145,6 +156,7 @@ export default function AudioEditor({
   const refWavesurfer = useRef<WaveSurfer | null>(null);
   const recWavesurfer = useRef<WaveSurfer | null>(null);
   const recRegionsPlugin = useRef<RegionsPlugin | null>(null);
+  const recordPluginRef = useRef<RecordPlugin | null>(null);
 
   // State audio reference sources
   const audioSources = useMemo(() => project.templates.audio_sources || [], [project.templates.audio_sources]);
@@ -156,15 +168,23 @@ export default function AudioEditor({
 
   // User Recording States
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedUrl, setRecordedUrl] = useState<string | null>(existingRecordingUrl);
   const [recorderInstance, setRecorderInstance] = useState<WavRecorder | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
+  const [recCursorTime, setRecCursorTime] = useState(0);
+  const [recordedDuration, setRecordedDuration] = useState(0);
+
+  // Phase 2: Auto-trim Refs & States
+  const recorderRef = useRef<WavRecorder | null>(null);
+  const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [recordingTimeMs, setRecordingTimeMs] = useState(0);
+  const punchInTimeMsRef = useRef(0);
+  const stopRecordingRef = useRef<() => void>(() => {});
 
   // UI state & loaders
   const [isUploading, setIsUploading] = useState(false);
-  const [translationText, setTranslationText] = useState(existingTranslationText || "");
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   
   // Microphone hardware DSP settings
   const [noiseSuppression, setNoiseSuppression] = useState(false);
@@ -222,6 +242,25 @@ export default function AudioEditor({
   useEffect(() => {
     if (!refContainerRef.current) return;
 
+    const bottomTimeline = TimelinePlugin.create({
+      height: 14,
+      timeInterval: 0.2,
+      primaryLabelInterval: 1,
+      style: {
+        fontSize: "10px",
+        color: "#6b7280",
+      },
+    });
+
+    const hoverRef = HoverPlugin.create({
+      lineColor: 'rgba(99, 102, 241, 0.5)',
+      lineWidth: 2,
+      labelBackground: 'rgba(0, 0, 0, 0.75)',
+      labelColor: '#fff',
+      labelSize: '10px',
+      formatTimeCallback: (time: number) => time.toFixed(2) + "s",
+    });
+
     const ws = WaveSurfer.create({
       container: refContainerRef.current,
       waveColor: "rgba(99, 102, 241, 0.4)", // Indigo light HSL
@@ -229,9 +268,8 @@ export default function AudioEditor({
       height: 80,
       cursorColor: "#6366f1", // Visible Indigo cursor/playhead needle
       interact: true,
-      barWidth: 2,
-      barGap: 3,
       sampleRate: 48000,
+      plugins: [bottomTimeline, hoverRef],
     });
 
     refWavesurfer.current = ws;
@@ -253,12 +291,36 @@ export default function AudioEditor({
     };
   }, [activeTabIdx, audioSources, project.templates.audio_url, loop.start_time_ms, loop.end_time_ms]);
 
-  // Initializing User Recording Wavesurfer
+  // Initializing User Recording Wavesurfer (Mounted Once)
   useEffect(() => {
-    if (!recContainerRef.current || !recordedUrl) {
-      recWavesurfer.current = null;
-      return;
-    }
+    if (!recContainerRef.current) return;
+
+    const bottomTimelineRec = TimelinePlugin.create({
+      height: 14,
+      timeInterval: 0.2,
+      primaryLabelInterval: 1,
+      style: {
+        fontSize: "10px",
+        color: "#6b7280",
+      },
+    });
+
+    const maxDurationS = Math.max(0.1, (loop.end_time_ms - loop.start_time_ms) / 1000);
+
+    const record = RecordPlugin.create({
+      scrollingWaveform: false, // Use fixed timeline instead of scrolling
+      renderRecordedAudio: false, // We load the true 24-bit WAV manually instead
+    });
+    recordPluginRef.current = record;
+
+    const hoverRec = HoverPlugin.create({
+      lineColor: 'rgba(16, 185, 129, 0.5)',
+      lineWidth: 2,
+      labelBackground: 'rgba(0, 0, 0, 0.75)',
+      labelColor: '#fff',
+      labelSize: '10px',
+      formatTimeCallback: (time: number) => time.toFixed(2) + "s",
+    });
 
     const ws = WaveSurfer.create({
       container: recContainerRef.current,
@@ -267,9 +329,10 @@ export default function AudioEditor({
       height: 90,
       cursorColor: "#10b981",
       interact: true,
-      barWidth: 2,
-      barGap: 3,
       sampleRate: 48000,
+      minPxPerSec: 0, // Force fit to container
+      plugins: [bottomTimelineRec, record, hoverRec],
+      duration: maxDurationS, // Force silent buffer timeline before recording
     });
 
     recWavesurfer.current = ws;
@@ -301,16 +364,43 @@ export default function AudioEditor({
 
     ws.on("play", () => setIsRecPlaying(true));
     ws.on("pause", () => setIsRecPlaying(false));
+    ws.on("timeupdate", (currentTime: unknown) => setRecCursorTime(Number(currentTime)));
+    ws.on("seeking", (currentTime: unknown) => setRecCursorTime(Number(currentTime)));
+    ws.on("decode", (duration) => setRecordedDuration(duration));
 
-    // Load active recording, catching AbortError
-    ws.load(recordedUrl).catch((err) => {
-      if (err.name !== "AbortError") console.error(err);
+    // Listen to recording progress for auto-stop
+    record.on("record-progress", (timeMs: number) => {
+      const totalMs = punchInTimeMsRef.current + timeMs;
+      setRecordingTimeMs(totalMs);
+
+      const maxDurMs = loop.end_time_ms - loop.start_time_ms;
+      if (maxDurMs > 0 && totalMs >= maxDurMs) {
+        stopRecordingRef.current();
+      }
     });
 
     return () => {
       ws.destroy();
     };
-  }, [recordedUrl]);
+  }, [loop.start_time_ms, loop.end_time_ms]);
+
+  // Load recorded URL when it changes
+  useEffect(() => {
+    if (recWavesurfer.current && recordedUrl && !isRecording) {
+      recWavesurfer.current.load(recordedUrl).catch((err) => {
+        if (err.name !== "AbortError") console.error(err);
+      });
+    } else if (recWavesurfer.current && !recordedUrl && !isRecording) {
+      // Instead of completely emptying, we load a pure silence audio buffer
+      // This preserves the timeline, click-to-seek, and acts exactly like an empty canvas
+      const maxDurS = Math.max(0.1, (loop.end_time_ms - loop.start_time_ms) / 1000);
+      const silentBlob = createSilentWavBlob(maxDurS);
+      const silentUrl = URL.createObjectURL(silentBlob);
+      recWavesurfer.current.load(silentUrl).catch((err) => {
+        if (err.name !== "AbortError") console.error(err);
+      });
+    }
+  }, [recordedUrl, isRecording, loop.end_time_ms, loop.start_time_ms]);
 
   // Handle Tab Switch for Reference
   const handleTabChange = (idx: number) => {
@@ -330,7 +420,11 @@ export default function AudioEditor({
     }
   };
 
-  // Toggle User Audio
+  const stopRefPlay = () => {
+    if (!refWavesurfer.current) return;
+    refWavesurfer.current.stop();
+  };
+
   const toggleRecPlay = () => {
     if (!recWavesurfer.current) return;
     if (isRecPlaying) {
@@ -340,40 +434,119 @@ export default function AudioEditor({
     }
   };
 
-  // Start Voice Recording
-  const startRecording = async () => {
-    try {
-      const recorder = new WavRecorder();
-      await recorder.start({
-        echoCancellation,
-        noiseSuppression,
-        autoGainControl,
-      });
-      setRecorderInstance(recorder);
-      setIsRecording(true);
-      setSelectedRegion(null);
-
-      // Stop any playing audio
-      if (refWavesurfer.current) refWavesurfer.current.pause();
-      if (recWavesurfer.current) recWavesurfer.current.pause();
-    } catch (err) {
-      alert("Gagal mengakses mikrofon: " + (err instanceof Error ? err.message : err));
-    }
+  const stopRecPlay = () => {
+    if (!recWavesurfer.current) return;
+    recWavesurfer.current.stop();
   };
 
   // Stop Voice Recording
   const stopRecording = async () => {
-    if (!recorderInstance) return;
-    const blob = recorderInstance.stop(); // Upgraded 24-bit 48kHz mono
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
+    }
+
+    if (recordPluginRef.current?.isRecording()) {
+      recordPluginRef.current.stopRecording();
+    }
+
+    const recorder = recorderRef.current || recorderInstance;
+    if (!recorder) return;
+    
+    const blob = recorder.stop(); // 24-bit 48kHz mono padded automatically
     setRecordedBlob(blob);
 
     const url = URL.createObjectURL(blob);
     setRecordedUrl(url);
     setIsRecording(false);
+    setIsPaused(false);
     setRecorderInstance(null);
+    recorderRef.current = null;
 
-    // Save locally to IndexedDB cache
     await saveLocalRecording(project.id, loop.id, blob);
+  };
+
+  useEffect(() => {
+    stopRecordingRef.current = stopRecording;
+  });
+
+  const pauseRecording = () => {
+    if (recordPluginRef.current?.isRecording()) {
+      recordPluginRef.current.pauseRecording();
+    }
+    const recorder = recorderRef.current || recorderInstance;
+    if (recorder) {
+      recorder.pause();
+    }
+    setIsPaused(true);
+  };
+
+  const resumeRecording = () => {
+    if (recordPluginRef.current?.isPaused()) {
+      recordPluginRef.current.resumeRecording();
+    }
+    const recorder = recorderRef.current || recorderInstance;
+    if (recorder) {
+      recorder.resume();
+    }
+    setIsPaused(false);
+  };
+
+  // Start Voice Recording
+  const startRecording = async () => {
+    try {
+      if (!recordPluginRef.current) return;
+
+      // 1. Get media stream via RecordPlugin
+      const stream = await recordPluginRef.current.startMic({
+        echoCancellation,
+        noiseSuppression,
+        autoGainControl,
+      });
+
+      // Extract existing audio buffer and playhead position for Punch-in Recording
+      let initialBuffer: Float32Array | undefined;
+      let startTimeSeconds = 0;
+      
+      if (recWavesurfer.current) {
+        const decodedData = recWavesurfer.current.getDecodedData();
+        if (decodedData) {
+          initialBuffer = decodedData.getChannelData(0);
+        }
+        startTimeSeconds = recWavesurfer.current.getCurrentTime() || 0;
+      }
+      punchInTimeMsRef.current = startTimeSeconds * 1000;
+      
+      const maxDurationS = Math.max(0.1, (loop.end_time_ms - loop.start_time_ms) / 1000);
+
+      // 2. Start true 24-bit PCM recorder using the SAME stream
+      const recorder = new WavRecorder();
+      await recorder.start({
+        echoCancellation,
+        noiseSuppression,
+        autoGainControl,
+        stream, // Re-use the existing stream to keep them synced
+        initialBuffer,
+        startTimeSeconds,
+        maxDurationSeconds: maxDurationS,
+      });
+      recorderRef.current = recorder;
+      setRecorderInstance(recorder);
+
+      // 3. Start RecordPlugin rendering
+      await recordPluginRef.current.startRecording();
+
+      setIsRecording(true);
+      setIsPaused(false);
+      setSelectedRegion(null);
+
+      // Stop any playing audio
+      if (refWavesurfer.current) refWavesurfer.current.pause();
+      if (recWavesurfer.current) recWavesurfer.current.pause();
+
+    } catch (err) {
+      alert("Gagal mengakses mikrofon: " + (err instanceof Error ? err.message : err));
+    }
   };
 
   // Trim Audio (Keep selected region)
@@ -385,13 +558,10 @@ export default function AudioEditor({
     const sampleRate = buffer.sampleRate;
     const startIndex = Math.floor(selectedRegion.start * sampleRate);
     const endIndex = Math.floor(selectedRegion.end * sampleRate);
-    const newLength = endIndex - startIndex;
-
-    if (newLength <= 0) return;
-
     const channelData = buffer.getChannelData(0);
-    const trimmedData = new Float32Array(newLength);
-    trimmedData.set(channelData.subarray(startIndex, endIndex));
+    // Keep exact same length, just mute everything outside selection
+    const trimmedData = new Float32Array(channelData.length);
+    trimmedData.set(channelData.subarray(startIndex, endIndex), startIndex);
 
     const wavBlob = encodeWav24Bit(trimmedData, sampleRate);
     setRecordedBlob(wavBlob);
@@ -409,8 +579,8 @@ export default function AudioEditor({
     await saveLocalRecording(project.id, loop.id, wavBlob);
   };
 
-  // Delete Audio (Stitch edges)
-  const handleDelete = async () => {
+  // Mute / Silent Audio Selection (Erase Audio without removing time)
+  const handleMuteSelection = async () => {
     if (!recWavesurfer.current || !selectedRegion) return;
     const buffer = recWavesurfer.current.getDecodedData();
     if (!buffer) return;
@@ -419,16 +589,12 @@ export default function AudioEditor({
     const startIndex = Math.floor(selectedRegion.start * sampleRate);
     const endIndex = Math.floor(selectedRegion.end * sampleRate);
 
-    const part1Length = startIndex;
-    const part2Length = Math.max(0, buffer.length - endIndex);
-    const newLength = part1Length + part2Length;
-
-    if (newLength <= 0) return;
-
     const channelData = buffer.getChannelData(0);
-    const stitchedData = new Float32Array(newLength);
-    stitchedData.set(channelData.subarray(0, startIndex));
-    stitchedData.set(channelData.subarray(endIndex), startIndex);
+    // Keep exact same length, just mute the selected region
+    const stitchedData = new Float32Array(channelData);
+    for (let i = startIndex; i < endIndex; i++) {
+      stitchedData[i] = 0;
+    }
 
     const wavBlob = encodeWav24Bit(stitchedData, sampleRate);
     setRecordedBlob(wavBlob);
@@ -444,6 +610,130 @@ export default function AudioEditor({
 
     // Save to IndexedDB local cache
     await saveLocalRecording(project.id, loop.id, wavBlob);
+  };
+
+  // Clear Selection
+  const handleClearSelection = () => {
+    if (recRegionsPlugin.current) {
+      recRegionsPlugin.current.clearRegions();
+    }
+    setSelectedRegion(null);
+  };
+
+  // Normalize Audio to -6dB
+  const handleNormalize = async () => {
+    if (!recWavesurfer.current || !recordedUrl) return;
+    const buffer = recWavesurfer.current.getDecodedData();
+    if (!buffer) return;
+
+    const sampleRate = buffer.sampleRate;
+    const channelData = buffer.getChannelData(0);
+    
+    // 1. Find Max Peak
+    let maxPeak = 0;
+    for (let i = 0; i < channelData.length; i++) {
+      const absVal = Math.abs(channelData[i]);
+      if (absVal > maxPeak) maxPeak = absVal;
+    }
+
+    if (maxPeak === 0) return; // Silent audio, skip
+    
+    // 2. Calculate Multiplier for -6dB
+    const targetPeak = Math.pow(10, -6 / 20); // ~0.501187
+    const multiplier = targetPeak / maxPeak;
+
+    // 3. Apply Multiplier
+    const normalizedData = new Float32Array(channelData.length);
+    for (let i = 0; i < channelData.length; i++) {
+      normalizedData[i] = channelData[i] * multiplier;
+    }
+
+    // 4. Save and Update
+    const wavBlob = encodeWav24Bit(normalizedData, sampleRate);
+    setRecordedBlob(wavBlob);
+
+    if (recRegionsPlugin.current) {
+      recRegionsPlugin.current.clearRegions();
+    }
+    setSelectedRegion(null);
+
+    const url = URL.createObjectURL(wavBlob);
+    setRecordedUrl(url);
+
+    await saveLocalRecording(project.id, loop.id, wavBlob);
+  };
+
+  // Normalize Selection Audio to -6dB
+  const handleNormalizeSelection = async () => {
+    if (!recWavesurfer.current || !recordedUrl || !selectedRegion) return;
+    const buffer = recWavesurfer.current.getDecodedData();
+    if (!buffer) return;
+
+    const sampleRate = buffer.sampleRate;
+    const channelData = buffer.getChannelData(0);
+    const startIndex = Math.floor(selectedRegion.start * sampleRate);
+    const endIndex = Math.floor(selectedRegion.end * sampleRate);
+    
+    // 1. Find Max Peak in the selected region
+    let maxPeak = 0;
+    for (let i = startIndex; i < endIndex; i++) {
+      const absVal = Math.abs(channelData[i]);
+      if (absVal > maxPeak) maxPeak = absVal;
+    }
+
+    if (maxPeak === 0) return; // Silent audio, skip
+    
+    // 2. Calculate Multiplier for -6dB
+    const targetPeak = Math.pow(10, -6 / 20); // ~0.501187
+    const multiplier = targetPeak / maxPeak;
+
+    // 3. Apply Multiplier ONLY to the selected region
+    const normalizedData = new Float32Array(channelData);
+    for (let i = startIndex; i < endIndex; i++) {
+      normalizedData[i] *= multiplier;
+    }
+
+    // 4. Save and Update
+    const wavBlob = encodeWav24Bit(normalizedData, sampleRate);
+    setRecordedBlob(wavBlob);
+
+    if (recRegionsPlugin.current) {
+      recRegionsPlugin.current.clearRegions();
+    }
+    setSelectedRegion(null);
+
+    const url = URL.createObjectURL(wavBlob);
+    setRecordedUrl(url);
+
+    await saveLocalRecording(project.id, loop.id, wavBlob);
+  };
+
+  // Discard Recording (Hapus Semua Rekaman)
+  const handleDiscardRecording = async () => {
+    if (!confirm("Hapus semua rekaman ini?")) return;
+
+    if (recordPluginRef.current?.isRecording()) {
+      recordPluginRef.current.stopRecording();
+    }
+    
+    if (recWavesurfer.current) {
+      recWavesurfer.current.empty();
+    }
+    
+    setRecordedBlob(null);
+    setRecordedUrl(null);
+    setIsRecording(false);
+    setIsPaused(false);
+    setRecCursorTime(0);
+    setRecordingTimeMs(0);
+    
+    // Clear regions
+    if (recRegionsPlugin.current) {
+      recRegionsPlugin.current.clearRegions();
+    }
+    setSelectedRegion(null);
+
+    await clearLocalRecording(project.id, loop.id);
   };
 
   // Submit and Upload to Cloudinary
@@ -504,7 +794,8 @@ export default function AudioEditor({
       // 5. Hapus cache IndexedDB
       await clearLocalRecording(project.id, loop.id);
 
-      alert("Rekaman berhasil diunggah langsung ke Cloudinary!");
+      alert("Rekaman berhasil diunggah! Anda akan dialihkan kembali ke halaman proyek.");
+      router.push(`/projects/${project.id}`);
     } catch (err) {
       alert("Gagal mengunggah rekaman: " + (err instanceof Error ? err.message : err));
     } finally {
@@ -512,342 +803,379 @@ export default function AudioEditor({
     }
   };
 
-  // Discard local recording
-  const handleDiscardRecording = async () => {
-    if (confirm("Buang rekaman sementara ini?")) {
-      await clearLocalRecording(project.id, loop.id);
-      setRecordedBlob(null);
-      setRecordedUrl(existingRecordingUrl);
-      setSelectedRegion(null);
-    }
-  };
 
-  // Autosave Translation Text Area onBlur
-  const handleTextBlur = async () => {
-    setSaveStatus("saving");
-    try {
-      await saveTranslationText(project.id, loop.id, translationText);
-      setSaveStatus("saved");
-      setTimeout(() => setSaveStatus("idle"), 2000);
-    } catch (err) {
-      console.error(err);
-      setSaveStatus("error");
-      setTimeout(() => setSaveStatus("idle"), 4000);
-    }
-  };
 
   const isUnsavedLocal = recordedBlob !== null;
   const currentScriptText = audioSources[activeTabIdx]?.script_text || "";
 
   return (
-    <div className="grid lg:grid-cols-12 w-full h-full items-stretch overflow-hidden bg-zinc-950">
-      {/* Left Column: User Recording Player/Editor */}
-      <div className="lg:col-span-7 h-full overflow-y-auto p-6 space-y-6">
-
-        {/* CARD 2: Perekam & Penyunting Audio */}
-        <Card className="border border-zinc-800 bg-zinc-900/50 shadow-2xl relative overflow-hidden text-zinc-100">
-          {isRecording && (
-            <div className="absolute inset-0 bg-red-500/5 border border-red-500/10 animate-pulse pointer-events-none" />
+    <div className="w-full h-full bg-background flex flex-col relative overflow-hidden text-foreground">
+      {isRecording && (
+        <div className="absolute inset-0 bg-red-500/5 border border-red-500/10 animate-pulse pointer-events-none z-10" />
+      )}
+      <div className="border-b border-border p-2 flex flex-row items-center justify-between shrink-0 bg-muted/10">
+        <div className="flex flex-wrap gap-1.5 p-1 bg-background border border-border rounded-lg w-fit">
+          {audioSources.length > 0 ? (
+            audioSources.map((source, index) => (
+              <Button
+                key={source.name}
+                type="button"
+                variant="ghost"
+                onClick={() => handleTabChange(index)}
+                className={`h-8.5 text-xs font-semibold px-4 transition-all rounded-md ${
+                  activeTabIdx === index
+                    ? "bg-indigo-600 text-white shadow-md hover:bg-indigo-700"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted bg-transparent"
+                }`}
+              >
+                {source.name}
+              </Button>
+            ))
+          ) : (
+            <div className="h-8.5 px-4 flex items-center text-xs font-semibold text-muted-foreground">Default</div>
           )}
-          <CardHeader className="border-b border-zinc-850 pb-3">
-            <CardTitle className="text-sm font-bold tracking-wide uppercase text-zinc-400 flex items-center gap-2">
-              <Mic className="w-4.5 h-4.5 text-emerald-500" /> Perekam & Editor Terjemahan
-            </CardTitle>
-            <CardDescription className="text-xs text-zinc-500">
-              Format audio mono 24-bit 48kHz PCM WAV. Lakukan seleksi pada gelombang audio dengan menarik kursor untuk melakukan Trim atau Delete.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-5 space-y-4">
+        </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant={isKeyTermsOpen ? "default" : "outline"} 
+                size="sm" 
+                onClick={onToggleKeyTerms}
+                className={`w-fit cursor-pointer h-8 text-xs font-semibold m-0 transition-colors ${isKeyTermsOpen ? "bg-indigo-600 hover:bg-indigo-700 text-white border-transparent" : "text-foreground"}`}
+              >
+                <BookOpen className={`w-3.5 h-3.5 mr-1.5 ${isKeyTermsOpen ? "text-white" : "text-indigo-500"}`} /> Kamus Kata Kunci
+              </Button>
+              <Popover>
+                <PopoverTrigger render={<Button variant="outline" size="sm" className="w-fit cursor-pointer h-8 text-xs font-semibold m-0" style={{ marginTop: 0 }} />}>
+                  <Sliders className="w-3.5 h-3.5 mr-1.5 text-emerald-500" /> Audio Settings
+                </PopoverTrigger>
+              <PopoverContent className="w-[220px] p-2" align="end">
+                <div className="space-y-2 text-foreground">
+                  <div className="flex items-center justify-between border-b border-border pb-1.5 px-1">
+                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <Sliders className="w-3 h-3 text-emerald-500" /> Audio Settings
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={toggleNoiseSuppression}
+                      disabled={isRecording}
+                      className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all duration-200 ${
+                        isRecording ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+                      } ${
+                        noiseSuppression
+                          ? "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/15"
+                          : "bg-background/40 border-border hover:bg-muted/60"
+                      }`}
+                    >
+                      <div className="flex flex-col pr-1.5">
+                        <span className="text-[10px] font-bold text-foreground">Noise Suppression</span>
+                        <span className="text-[8px] text-muted-foreground mt-0.5 leading-tight">Reduksi bising sekitar</span>
+                      </div>
+                      <span className={`shrink-0 text-[8px] font-bold px-1.5 py-0.5 rounded ${noiseSuppression ? "bg-emerald-500/20 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                        {noiseSuppression ? "ON" : "OFF"}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleAutoGainControl}
+                      disabled={isRecording}
+                      className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all duration-200 ${
+                        isRecording ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+                      } ${
+                        autoGainControl
+                          ? "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/15"
+                          : "bg-background/40 border-border hover:bg-muted/60"
+                      }`}
+                    >
+                      <div className="flex flex-col pr-1.5">
+                        <span className="text-[10px] font-bold text-foreground">Auto Gain Control</span>
+                        <span className="text-[8px] text-muted-foreground mt-0.5 leading-tight">Penyesuaian volume</span>
+                      </div>
+                      <span className={`shrink-0 text-[8px] font-bold px-1.5 py-0.5 rounded ${autoGainControl ? "bg-emerald-500/20 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                        {autoGainControl ? "ON" : "OFF"}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleEchoCancellation}
+                      disabled={isRecording}
+                      className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all duration-200 ${
+                        isRecording ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+                      } ${
+                        echoCancellation
+                          ? "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/15"
+                          : "bg-background/40 border-border hover:bg-muted/60"
+                      }`}
+                    >
+                      <div className="flex flex-col pr-1.5">
+                        <span className="text-[10px] font-bold text-foreground">Echo Cancellation</span>
+                        <span className="text-[8px] text-muted-foreground mt-0.5 leading-tight">Mencegah gema speaker</span>
+                      </div>
+                      <span className={`shrink-0 text-[8px] font-bold px-1.5 py-0.5 rounded ${echoCancellation ? "bg-emerald-500/20 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                        {echoCancellation ? "ON" : "OFF"}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+            </div>
+      </div>
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="border-b border-border space-y-1 bg-muted/5 shrink-0">
+            {/* Script Display Overlay */}
+            <div className="p-4 rounded-xl border border-border bg-muted/30 relative min-h-[90px]">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="text-[10px] text-indigo-400 uppercase font-bold tracking-widest">
+                  Naskah Skrip ({audioSources[activeTabIdx]?.name || "Default"})
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleRefPlay}
+                    className="h-6 text-[10px] font-semibold text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 hover:text-emerald-400 bg-background/40 px-2"
+                  >
+                    {isRefPlaying ? <Pause className="w-3 h-3 mr-1" /> : <Play className="w-3 h-3 mr-1" />}
+                    {isRefPlaying ? "Pause" : "Putar Referensi"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={stopRefPlay}
+                    className="h-6 text-[10px] font-semibold text-rose-500 border-rose-950/40 hover:bg-rose-950/20 hover:text-rose-400 bg-background/40 px-2"
+                  >
+                    <Square className="w-3 h-3 mr-1" />
+                    Stop
+                  </Button>
+                </div>
+              </div>
+              <p className="text-sm text-foreground leading-relaxed font-medium">
+                {currentScriptText || <span className="text-muted-foreground italic">Skrip teks tidak tersedia untuk tab ini.</span>}
+              </p>
+            </div>
+
+            {/* Wavesurfer Container */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-4">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Audio Referensi</span>
+                <span className="text-[10px] font-mono font-bold text-indigo-500">
+                  {((loop.end_time_ms - loop.start_time_ms) / 1000).toFixed(2)}s
+                </span>
+              </div>
+              <div ref={refContainerRef} className="w-full bg-background border border-border rounded-xl p-2.5 cursor-text" />
+              <div className="w-full pt-2 relative">
+                <div ref={recContainerRef} className="w-full relative bg-background border border-border rounded-xl p-3 min-h-[90px] cursor-text">
+                  {/* Black Cursor Time Indicator */}
+                  <div 
+                    className="absolute top-1 -translate-x-1/2 bg-black text-white text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm z-10 pointer-events-none transition-all duration-75"
+                    style={{ 
+                      left: `calc(12px + calc(100% - 24px) * ${(isRecording ? recordingTimeMs / 1000 : recCursorTime) / Math.max(0.1, (loop.end_time_ms - loop.start_time_ms) / 1000)})` 
+                    }}
+                  >
+                    {(isRecording ? recordingTimeMs / 1000 : recCursorTime).toFixed(2)}s
+                  </div>
+                </div>
+              </div>
+                  
+              {/* Audio Editor Controls (Trim/Delete & Record) */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/60 p-2.5 rounded-xl border border-border mt-2">
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title={isRecPlaying ? "Pause" : "Putar"}
+                    onClick={toggleRecPlay}
+                    disabled={!recordedUrl}
+                    className="h-8 w-8 text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 hover:text-emerald-400 bg-background/40 disabled:opacity-50"
+                  >
+                    {isRecPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Stop"
+                    onClick={stopRecPlay}
+                    disabled={!recordedUrl}
+                    className="h-8 w-8 text-rose-500 border-rose-950/40 hover:bg-rose-950/20 hover:text-rose-400 bg-background/40 disabled:opacity-50"
+                  >
+                    <Square className="w-4 h-4" />
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Trim Seleksi"
+                    onClick={handleTrim}
+                    disabled={!selectedRegion || !recordedUrl}
+                    className="h-8 w-8 border-border text-foreground/90 hover:text-foreground hover:bg-muted bg-background/40 disabled:opacity-50"
+                  >
+                    <Scissors className="w-4 h-4" />
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Mute / Silent Seleksi"
+                    onClick={handleMuteSelection}
+                    disabled={!selectedRegion || !recordedUrl}
+                    className="h-8 w-8 text-red-400 border-red-950/40 hover:bg-red-950/20 hover:text-red-300 disabled:opacity-50"
+                  >
+                    <VolumeX className="w-4 h-4" />
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Normalize (-6dB)"
+                    onClick={handleNormalize}
+                    disabled={!recordedUrl}
+                    className="h-8 w-8 border-border text-foreground/90 hover:text-foreground hover:bg-muted bg-background/40 disabled:opacity-50"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Normalize Seleksi (-6dB)"
+                    onClick={handleNormalizeSelection}
+                    disabled={!selectedRegion || !recordedUrl}
+                    className="h-8 w-8 border-border text-foreground/90 hover:text-foreground hover:bg-muted bg-background/40 disabled:opacity-50"
+                  >
+                    <Volume1 className="w-4 h-4" />
+                  </Button>
+
+                  {(recordedUrl || isRecording) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      title="Hapus Semua"
+                      onClick={handleDiscardRecording}
+                      className="h-8 w-8 bg-red-600 text-black hover:bg-red-500 hover:text-black border-none transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {selectedRegion && (
+                    <div className="flex items-center gap-2 bg-muted/50 border border-border rounded px-2 py-1">
+                      <span className="text-[10px] text-muted-foreground font-mono font-bold">
+                        Seleksi: {selectedRegion.start.toFixed(2)}s - {selectedRegion.end.toFixed(2)}s (Durasi: {(selectedRegion.end - selectedRegion.start).toFixed(2)}s)
+                      </span>
+                      <button 
+                        type="button" 
+                        onClick={handleClearSelection}
+                        title="Batal Seleksi"
+                        className="text-muted-foreground hover:text-foreground hover:bg-muted-foreground/20 rounded-full p-0.5 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  
+                  {isRecording ? (
+                    <div className="flex items-center gap-3">
+                      {/* Timer Display */}
+                      <div className="text-xs font-mono font-bold text-red-400">
+                        {(recordingTimeMs / 1000).toFixed(2)}s / {((loop.end_time_ms - loop.start_time_ms) / 1000).toFixed(2)}s
+                      </div>
+
+                      {/* Pause / Resume Button */}
+                      {isPaused ? (
+                        <button
+                          type="button"
+                          className="h-8 w-8 rounded-full border-2 border-red-600 bg-transparent hover:bg-red-950/30 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group animate-pulse"
+                          title="Lanjutkan Merekam (Append)"
+                          onClick={resumeRecording}
+                        >
+                          <span className="w-3 h-3 rounded-full bg-red-500 group-hover:scale-110 transition-transform" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="h-8 w-8 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group animate-pulse"
+                          title="Jeda Rekaman (Pause)"
+                          onClick={pauseRecording}
+                        >
+                          <Pause className="h-3.5 w-3.5 fill-white text-white" />
+                        </button>
+                      )}
+
+                      {/* Finalize / Stop Button */}
+                      <button
+                        type="button"
+                        className="h-8 px-2.5 rounded bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-white flex items-center shadow-lg transition-colors"
+                        title="Selesai Merekam"
+                        onClick={stopRecording}
+                      >
+                        <Square className="h-3 w-3 fill-white mr-1.5" /> Stop
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        className="h-8 w-8 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group disabled:opacity-50 disabled:pointer-events-none"
+                        title="Mulai Rekam Baru"
+                        onClick={startRecording}
+                        disabled={isUploading}
+                      >
+                        <span className="w-3 h-3 rounded-full bg-white group-hover:scale-110 transition-transform" />
+                      </button>
+
+                      {/* Duration Display when not recording */}
+                      {recordedUrl && (
+                        <div className="text-xs font-mono font-bold text-emerald-500">
+                          {recordedDuration.toFixed(2)}s / {((loop.end_time_ms - loop.start_time_ms) / 1000).toFixed(2)}s
+                        </div>
+                      )}
+
+                      {/* Upload Button moved into controls */}
+                      {recordedUrl && !isRecording && (
+                        <Button
+                          className="h-8 text-xs font-bold gap-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-950 shadow-sm"
+                          onClick={handleUploadRecording}
+                          disabled={isUploading}
+                        >
+                          {isUploading ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Upload className="w-3.5 h-3.5" />
+                          )}
+                          Kirim Rekaman
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="p-5 space-y-2 flex-1 overflow-y-auto">
             {/* Status warning unsaved */}
             {isUnsavedLocal && (
               <div className="bg-amber-500/10 text-amber-500 text-xs px-3 py-2.5 rounded-xl border border-amber-500/20 text-center font-semibold animate-pulse">
                 Ada rekaman lokal yang belum dikirim ke Cloudinary.
               </div>
             )}
-
-            {/* Control Panel: Audio Processing Settings */}
-            <div className="border border-zinc-800 rounded-2xl p-4 bg-zinc-950/20 space-y-3 text-zinc-100">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Sliders className="w-3.5 h-3.5 text-emerald-500" /> Pemrosesan Mikrofon (Hardware/Browser DSP)
-                </span>
-                <span className="text-[10px] text-zinc-550 italic">
-                  Nonaktifkan semua untuk suara mentah (Raw)
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <button
-                  type="button"
-                  onClick={toggleNoiseSuppression}
-                  disabled={isRecording}
-                  className={`flex flex-col items-start justify-center p-3 rounded-xl border text-left transition-all duration-200 ${
-                    isRecording ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
-                  } ${
-                    noiseSuppression
-                      ? "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/15"
-                      : "bg-zinc-950/40 border-zinc-850 hover:bg-zinc-900/60"
-                  }`}
-                >
-                  <span className="text-[11px] font-bold text-zinc-200">Noise Suppression</span>
-                  <span className="text-[9px] text-zinc-500 mt-0.5 leading-tight">Reduksi suara bising kipas/ruangan</span>
-                  <span className={`text-[10px] font-bold mt-2 ${noiseSuppression ? "text-emerald-400" : "text-zinc-550"}`}>
-                    {noiseSuppression ? "Aktif (ON)" : "Nonaktif (OFF)"}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={toggleAutoGainControl}
-                  disabled={isRecording}
-                  className={`flex flex-col items-start justify-center p-3 rounded-xl border text-left transition-all duration-200 ${
-                    isRecording ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
-                  } ${
-                    autoGainControl
-                      ? "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/15"
-                      : "bg-zinc-950/40 border-zinc-850 hover:bg-zinc-900/60"
-                  }`}
-                >
-                  <span className="text-[11px] font-bold text-zinc-200">Auto Gain Control</span>
-                  <span className="text-[9px] text-zinc-500 mt-0.5 leading-tight">Penyesuaian volume otomatis</span>
-                  <span className={`text-[10px] font-bold mt-2 ${autoGainControl ? "text-emerald-400" : "text-zinc-550"}`}>
-                    {autoGainControl ? "Aktif (ON)" : "Nonaktif (OFF)"}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={toggleEchoCancellation}
-                  disabled={isRecording}
-                  className={`flex flex-col items-start justify-center p-3 rounded-xl border text-left transition-all duration-200 ${
-                    isRecording ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
-                  } ${
-                    echoCancellation
-                      ? "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/15"
-                      : "bg-zinc-950/40 border-zinc-850 hover:bg-zinc-900/60"
-                  }`}
-                >
-                  <span className="text-[11px] font-bold text-zinc-200">Echo Cancellation</span>
-                  <span className="text-[9px] text-zinc-500 mt-0.5 leading-tight">Mencegah gema dari speaker</span>
-                  <span className={`text-[10px] font-bold mt-2 ${echoCancellation ? "text-emerald-400" : "text-zinc-550"}`}>
-                    {echoCancellation ? "Aktif (ON)" : "Nonaktif (OFF)"}
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {/* Audio interface container */}
-            <div className="border border-dashed border-zinc-800 rounded-2xl p-6 bg-zinc-950/40 flex flex-col items-center justify-center min-h-[160px] text-center transition-all">
-              {isRecording ? (
-                <div className="space-y-4">
-                  <div className="w-14 h-14 bg-red-500 text-white rounded-full flex items-center justify-center animate-ping duration-1000 mx-auto">
-                    <Mic className="w-7 h-7" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-red-500 text-sm animate-pulse">Sedang Merekam Suara Terjemahan...</div>
-                    <div className="text-xs text-zinc-400 mt-1">Bicaralah dengan jelas dekat mikrofon Anda</div>
-                  </div>
-                </div>
-              ) : recordedUrl ? (
-                <div className="w-full space-y-4">
-                  <div ref={recContainerRef} className="w-full bg-zinc-950 border border-zinc-850 rounded-xl p-3" />
-                  
-                  {/* Audio Editor Controls (Trim/Delete) */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 bg-zinc-900/60 p-2.5 rounded-xl border border-zinc-800">
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={toggleRecPlay}
-                        className="h-8 text-xs font-semibold border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-900 bg-zinc-950/40"
-                      >
-                        {isRecPlaying ? <Pause className="w-3.5 h-3.5 mr-1" /> : <Play className="w-3.5 h-3.5 mr-1" />}
-                        {isRecPlaying ? "Pause" : "Putar"}
-                      </Button>
-
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleTrim}
-                        disabled={!selectedRegion}
-                        className="h-8 text-xs font-semibold border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-900 bg-zinc-950/40 disabled:opacity-50"
-                      >
-                        <Scissors className="w-3.5 h-3.5 mr-1" /> Trim Seleksi
-                      </Button>
-
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleDelete}
-                        disabled={!selectedRegion}
-                        className="h-8 text-xs font-semibold text-red-400 border-red-950/40 hover:bg-red-950/20 hover:text-red-300 disabled:opacity-50"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete Seleksi
-                      </Button>
-                    </div>
-
-                    {selectedRegion && (
-                      <div className="text-[10px] text-zinc-400 font-mono font-bold">
-                        Seleksi: {selectedRegion.start.toFixed(2)}s - {selectedRegion.end.toFixed(2)}s (Durasi: {(selectedRegion.end - selectedRegion.start).toFixed(2)}s)
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Mic className="w-10 h-10 mx-auto text-zinc-500 stroke-[1.2] mb-1" />
-                  <p className="text-sm font-semibold text-zinc-300">Siap Merekam</p>
-                  <p className="text-xs text-zinc-550">Tekan tombol &quot;Mulai Rekam&quot; di bawah untuk merekam audio terjemahan Anda</p>
-                </div>
-              )}
-            </div>
-
-            {/* INPUT: Text Translation Area */}
-            <div className="space-y-2 border-t border-zinc-850 pt-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="translation-input" className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-                  Teks Hasil Terjemahan
-                </Label>
-                {saveStatus === "saving" && (
-                  <span className="text-[10px] text-zinc-400 flex items-center gap-1">
-                    <Loader2 className="w-3 h-3 animate-spin" /> Menyimpan perubahan...
-                  </span>
-                )}
-                {saveStatus === "saved" && (
-                  <span className="text-[10px] text-emerald-555 flex items-center gap-1 font-semibold animate-fade-in">
-                    <Check className="w-3.5 h-3.5" /> Tersimpan otomatis
-                  </span>
-                )}
-                {saveStatus === "error" && (
-                  <span className="text-[10px] text-red-500 font-semibold animate-pulse">
-                    Gagal menyimpan perubahan!
-                  </span>
-                )}
-              </div>
-              <textarea
-                id="translation-input"
-                value={translationText}
-                onChange={(e) => setTranslationText(e.target.value)}
-                onBlur={handleTextBlur}
-                placeholder="Masukkan ejaan teks hasil terjemahan lisan di sini (Perubahan akan disimpan otomatis saat Anda beralih kolom)..."
-                className="flex min-h-[100px] w-full rounded-md border border-zinc-850 bg-zinc-950 px-3 py-2 text-sm shadow-xs placeholder:text-zinc-650 text-zinc-100 focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-              />
-            </div>
-          </CardContent>
-
-          <CardFooter className="flex flex-col gap-3 border-t border-zinc-850 bg-zinc-900/20 p-4">
-            {isRecording ? (
-              <Button
-                variant="destructive"
-                className="w-full font-bold gap-2 h-10.5 shadow-md hover:bg-red-700"
-                onClick={stopRecording}
-              >
-                <Square className="w-4 h-4 fill-white" /> Selesai Perekaman
-              </Button>
-            ) : (
-              <Button
-                className="w-full font-bold gap-2 h-10.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
-                onClick={startRecording}
-                disabled={isUploading}
-              >
-                <Mic className="w-4 h-4" /> Mulai Rekam Baru
-              </Button>
-            )}
-
-            {recordedBlob && (
-              <div className="flex gap-2 w-full">
-                <Button
-                  className="w-full font-bold gap-2 h-10.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-950 shadow-sm"
-                  onClick={handleUploadRecording}
-                  disabled={isUploading || isRecording}
-                >
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" /> Mengunggah ke Cloudinary...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4" /> Kirim Rekaman ke Cloudinary
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full font-bold gap-2 h-10.5 border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-900 bg-zinc-950/40"
-                  onClick={handleDiscardRecording}
-                  disabled={isUploading || isRecording}
-                >
-                  <RotateCcw className="w-4 h-4" /> Buang Rekaman
-                </Button>
-              </div>
-            )}
-          </CardFooter>
-        </Card>
-      </div>
-
-      {/* Right Column: Reference Audio & Key Terms */}
-      <div className="lg:col-span-5 h-full overflow-y-auto p-6 space-y-6 border-t lg:border-t-0 lg:border-l border-zinc-800">
-        {/* CARD 1: Audio Referensi & Skrip */}
-        <Card className="overflow-hidden border border-zinc-800 bg-zinc-900/50 text-white shadow-2xl">
-          <CardHeader className="border-b border-zinc-850 pb-3 bg-zinc-900/10">
-            <CardTitle className="text-sm font-bold tracking-wide uppercase text-zinc-400 flex items-center gap-2">
-              <Volume2 className="w-4.5 h-4.5 text-indigo-400" /> Audio Referensi
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-5 space-y-4">
-            {/* Tab buttons */}
-            {audioSources.length > 1 && (
-              <div className="flex flex-wrap gap-1.5 p-1 bg-zinc-950 border border-zinc-850 rounded-lg w-fit">
-                {audioSources.map((source, index) => (
-                  <Button
-                    key={source.name}
-                    type="button"
-                    variant="ghost"
-                    onClick={() => handleTabChange(index)}
-                    className={`h-8.5 text-xs font-semibold px-4 transition-all rounded-md ${
-                      activeTabIdx === index
-                        ? "bg-indigo-600 text-white shadow-md hover:bg-indigo-700"
-                        : "text-zinc-400 hover:text-white hover:bg-zinc-900 bg-transparent"
-                    }`}
-                  >
-                    {source.name}
-                  </Button>
-                ))}
-              </div>
-            )}
-
-            {/* Script Display Overlay */}
-            <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950/40 relative min-h-[90px] backdrop-blur-xs">
-              <div className="text-[10px] text-indigo-400 uppercase font-bold tracking-widest mb-1.5">
-                Naskah Skrip ({audioSources[activeTabIdx]?.name || "Default"})
-              </div>
-              <p className="text-sm text-zinc-200 leading-relaxed font-medium">
-                {currentScriptText || <span className="text-zinc-550 italic">Skrip teks tidak tersedia untuk tab ini.</span>}
-              </p>
-            </div>
-
-            {/* Wavesurfer Container */}
-            <div className="space-y-2">
-              <div ref={refContainerRef} className="w-full bg-zinc-950 border border-zinc-850 rounded-xl p-2.5" />
-              <div className="flex justify-start">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={toggleRefPlay}
-                  className="h-8 text-xs font-semibold border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-900 bg-zinc-950/40"
-                >
-                  {isRefPlaying ? <Pause className="w-3.5 h-3.5 mr-1.5" /> : <Play className="w-3.5 h-3.5 mr-1.5" />}
-                  {isRefPlaying ? "Pause Referensi" : "Putar Referensi"}
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {children}
+        </div>
       </div>
     </div>
   );

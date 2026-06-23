@@ -3,24 +3,48 @@ export class WavRecorder {
   private micNode: MediaStreamAudioSourceNode | null = null;
   private processorNode: ScriptProcessorNode | null = null;
   private stream: MediaStream | null = null;
-  private leftchannel: Float32Array[] = [];
-  private recordingLength = 0;
+  private audioBuffer: Float32Array | null = null;
+  private cursorIndex = 0;
   private sampleRate = 48000;
+  private isPaused = false;
 
   constructor() {}
 
-  async start(options?: { echoCancellation?: boolean; noiseSuppression?: boolean; autoGainControl?: boolean }) {
-    this.leftchannel = [];
-    this.recordingLength = 0;
+  async start(options?: { 
+    echoCancellation?: boolean; 
+    noiseSuppression?: boolean; 
+    autoGainControl?: boolean; 
+    stream?: MediaStream;
+    initialBuffer?: Float32Array;
+    startTimeSeconds?: number;
+    maxDurationSeconds?: number;
+  }) {
+    this.isPaused = false;
     
-    // Request microphone access with constraints (defaults to raw audio)
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: options?.echoCancellation ?? false,
-        noiseSuppression: options?.noiseSuppression ?? false,
-        autoGainControl: options?.autoGainControl ?? false,
-      }
-    });
+    const maxSamples = Math.ceil((options?.maxDurationSeconds || 0) * 48000);
+    this.audioBuffer = new Float32Array(Math.max(maxSamples, options?.initialBuffer?.length || 0));
+    
+    if (options?.initialBuffer) {
+      this.audioBuffer.set(options.initialBuffer);
+    }
+    
+    this.cursorIndex = Math.floor((options?.startTimeSeconds || 0) * 48000);
+    if (this.cursorIndex > this.audioBuffer.length) {
+      this.cursorIndex = this.audioBuffer.length;
+    }
+    
+    // Request microphone access if no stream provided
+    if (options?.stream) {
+      this.stream = options.stream;
+    } else {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: options?.echoCancellation ?? false,
+          noiseSuppression: options?.noiseSuppression ?? false,
+          autoGainControl: options?.autoGainControl ?? false,
+        }
+      });
+    }
     
     const AudioContextClass = window.AudioContext || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     this.audioContext = new AudioContextClass({ sampleRate: 48000 });
@@ -32,13 +56,26 @@ export class WavRecorder {
     this.processorNode = this.audioContext.createScriptProcessor(4096, 1, 1);
 
     this.processorNode.onaudioprocess = (e) => {
+      if (this.isPaused || !this.audioBuffer) return;
       const inputData = e.inputBuffer.getChannelData(0);
-      this.leftchannel.push(new Float32Array(inputData));
-      this.recordingLength += inputData.length;
+      
+      const writeLen = Math.min(inputData.length, this.audioBuffer.length - this.cursorIndex);
+      if (writeLen > 0) {
+        this.audioBuffer.set(inputData.subarray(0, writeLen), this.cursorIndex);
+        this.cursorIndex += writeLen;
+      }
     };
 
     this.micNode.connect(this.processorNode);
     this.processorNode.connect(this.audioContext.destination);
+  }
+
+  pause() {
+    this.isPaused = true;
+  }
+
+  resume() {
+    this.isPaused = false;
   }
 
   stop(): Blob {
@@ -53,22 +90,17 @@ export class WavRecorder {
       this.audioContext.close();
     }
 
-    // Flatten the left channel buffers
-    const result = new Float32Array(this.recordingLength);
-    let offset = 0;
-    for (let i = 0; i < this.leftchannel.length; i++) {
-      result.set(this.leftchannel[i], offset);
-      offset += this.leftchannel[i].length;
-    }
+    const result = this.audioBuffer || new Float32Array(0);
+    const targetLength = result.length;
 
     // Create WAV ArrayBuffer
-    const buffer = new ArrayBuffer(44 + this.recordingLength * 3);
+    const buffer = new ArrayBuffer(44 + targetLength * 3);
     const view = new DataView(buffer);
 
     /* RIFF identifier */
     this.writeString(view, 0, 'RIFF');
     /* file length */
-    view.setUint32(4, 36 + this.recordingLength * 3, true);
+    view.setUint32(4, 36 + targetLength * 3, true);
     /* RIFF type */
     this.writeString(view, 8, 'WAVE');
     /* format chunk identifier */
@@ -90,7 +122,7 @@ export class WavRecorder {
     /* data chunk identifier */
     this.writeString(view, 36, 'data');
     /* data chunk length */
-    view.setUint32(40, this.recordingLength * 3, true);
+    view.setUint32(40, targetLength * 3, true);
 
     // Write PCM audio samples
     let index = 44;

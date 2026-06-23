@@ -499,21 +499,21 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
   });
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-zinc-950 text-zinc-100">
+    <div className="flex flex-col h-screen overflow-hidden bg-background text-foreground">
       
       {/* 1. Header/Top Bar */}
-      <header className="h-12 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4 shrink-0 z-10 select-none">
+      <header className="h-12 bg-muted border-b border-border flex items-center justify-between px-4 shrink-0 z-10 select-none">
         <div className="flex items-center gap-3">
           <Link href="/projects">
-            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-zinc-800 text-zinc-400 hover:text-foreground">
+            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-secondary text-muted-foreground hover:text-foreground">
               <ChevronLeft className="h-5 w-5" />
             </Button>
           </Link>
           <div className="flex items-center gap-2">
-            <span className="font-bold text-sm tracking-tight text-zinc-200">{project.name}</span>
+            <span className="font-bold text-sm tracking-tight text-foreground">{project.name}</span>
             {isAdmin && (
               <Link href={`/projects/${project.id}/edit`}>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-primary" title="Edit Proyek">
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" title="Edit Proyek">
                   <ShieldCheck className="h-4 w-4" />
                 </Button>
               </Link>
@@ -523,21 +523,21 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
 
         {/* Center: Scene Selector Switcher */}
         {sortedScenes.length > 0 && (
-          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-850 px-3 py-1 rounded text-xs select-none">
+          <div className="flex items-center gap-2 bg-background border border-border px-3 py-1 rounded text-xs select-none">
             <button
               type="button"
-              className="text-zinc-500 hover:text-white disabled:opacity-30"
+              className="text-muted-foreground hover:text-foreground disabled:opacity-30"
               onClick={() => setActiveSceneIndex((prev) => Math.max(0, prev - 1))}
               disabled={activeSceneIndex === 0}
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="font-black text-zinc-100 px-2 tracking-wide uppercase">
+            <span className="font-black text-foreground px-2 tracking-wide uppercase">
               {activeSceneIndex + 1} - {activeScene?.name || "Scene"}
             </span>
             <button
               type="button"
-              className="text-zinc-500 hover:text-white disabled:opacity-30"
+              className="text-muted-foreground hover:text-foreground disabled:opacity-30"
               onClick={() => setActiveSceneIndex((prev) => Math.min(sortedScenes.length - 1, prev + 1))}
               disabled={activeSceneIndex === sortedScenes.length - 1}
             >
@@ -554,11 +554,11 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
       <div className="flex flex-1 overflow-hidden">
         
         {/* Left Column (Video Player & Notes/Comments) */}
-        <div className="w-[40%] flex flex-col border-r border-zinc-800 overflow-hidden shrink-0">
+        <div className="w-[40%] flex flex-col border-r border-border overflow-hidden shrink-0">
           
           {/* Top Half: Video Player */}
-          <div className="bg-black relative flex flex-col justify-between overflow-hidden border-b border-zinc-800 h-[50%] shrink-0">
-            <div className="flex-1 relative bg-zinc-950 min-h-0 overflow-hidden">
+          <div className="bg-black relative flex flex-col justify-between overflow-hidden border-b border-border h-[50%] shrink-0">
+            <div className="flex-1 relative bg-background min-h-0 overflow-hidden">
               {project.templates?.video_url ? (
                 <video
                   ref={videoRef}
@@ -568,7 +568,7 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                   playsInline
                 />
               ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-zinc-650">
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground">
                   <Film className="h-14 w-14 stroke-[1.2] animate-pulse" />
                   <span className="text-xs font-bold">Video referensi tidak terunggah</span>
                 </div>
@@ -590,15 +590,15 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
             </div>
 
             {/* Video Controls Bar matching screenshot */}
-            <div className="h-10 bg-zinc-900 border-t border-zinc-850 flex items-center gap-3 px-3 shrink-0 select-none">
-              <div className="flex items-center text-zinc-500">
+            <div className="h-10 bg-muted border-t border-border flex items-center gap-3 px-3 shrink-0 select-none">
+              <div className="flex items-center text-muted-foreground">
                 <Film className="h-4 w-4" />
               </div>
 
               <button
                 type="button"
                 onClick={toggleVideoPlayback}
-                className="h-7 w-7 text-zinc-300 hover:text-white border border-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-800 transition-colors shrink-0"
+                className="h-7 w-7 text-foreground/90 hover:text-foreground border border-border rounded-full flex items-center justify-center hover:bg-secondary transition-colors shrink-0"
                 title={isVideoPlaying ? "Pause" : "Play"}
               >
                 {isVideoPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 fill-zinc-300 ml-0.5" />}
@@ -607,7 +607,7 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
               <button
                 type="button"
                 onClick={handleStopVideo}
-                className="h-7 w-7 text-zinc-300 hover:text-white border border-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-800 transition-colors shrink-0"
+                className="h-7 w-7 text-foreground/90 hover:text-foreground border border-border rounded-full flex items-center justify-center hover:bg-secondary transition-colors shrink-0"
                 title="Stop & Reset"
               >
                 <Square className="h-3 w-3 fill-zinc-300" />
@@ -620,10 +620,10 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                 className={cn(
                   "h-7 w-7 rounded-full flex items-center justify-center transition-colors shrink-0 border",
                   !project.templates?.mne_audio_url
-                    ? "opacity-30 cursor-not-allowed text-zinc-600 border-zinc-850"
+                    ? "opacity-30 cursor-not-allowed text-zinc-600 border-border"
                     : isMneEnabled
-                    ? "bg-amber-600 border-transparent text-white hover:bg-amber-700"
-                    : "bg-zinc-950 text-zinc-400 border-zinc-800 hover:text-white hover:bg-zinc-800"
+                    ? "bg-amber-600 border-transparent text-foreground hover:bg-amber-700"
+                    : "bg-background text-muted-foreground border-border hover:text-foreground hover:bg-secondary"
                 )}
                 title={project.templates?.mne_audio_url ? "Toggle M&E (Music & Effects)" : "M&E tidak tersedia"}
               >
@@ -639,7 +639,7 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                       setActiveAudioUrl(selected.url);
                     }
                   }}
-                  className="bg-zinc-950 border border-zinc-850 text-[10px] font-mono rounded px-2 py-1 text-zinc-400 focus:outline-none focus:border-zinc-700 cursor-pointer"
+                  className="bg-background border border-border text-[10px] font-mono rounded px-2 py-1 text-muted-foreground focus:outline-none focus:border-border cursor-pointer"
                 >
                   {audioSources.map((source) => (
                     <option key={source.name} value={source.url}>
@@ -652,20 +652,20 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                 </select>
               </div>
 
-              <div className="flex-1 h-1 bg-zinc-800 rounded-full relative overflow-hidden">
+              <div className="flex-1 h-1 bg-secondary rounded-full relative overflow-hidden">
                 <div className="absolute left-0 top-0 bottom-0 w-1/3 bg-zinc-650" />
               </div>
             </div>
           </div>
 
           {/* Bottom Half: Notes/Comments Panel */}
-          <div className="flex-1 flex flex-col overflow-hidden bg-zinc-900/30">
-            <div className="h-9 border-b border-zinc-800 bg-zinc-900/80 px-3 flex items-center gap-2 shrink-0 select-none">
-              <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">Notes</span>
-              <span className="text-zinc-650">|</span>
+          <div className="flex-1 flex flex-col overflow-hidden bg-muted/30">
+            <div className="h-9 border-b border-border bg-muted/80 px-3 flex items-center gap-2 shrink-0 select-none">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Notes</span>
+              <span className="text-muted-foreground">|</span>
               <button
                 type="button"
-                className="text-zinc-400 hover:text-white flex items-center gap-0.5 text-xs font-bold"
+                className="text-muted-foreground hover:text-foreground flex items-center gap-0.5 text-xs font-bold"
                 onClick={() => document.getElementById("new-note-input")?.focus()}
                 title="Add Note"
               >
@@ -677,22 +677,22 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
             {/* Notes List */}
             <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
               {notes.map((note) => (
-                <div key={note.id} className="border border-zinc-800/80 bg-zinc-950/45 rounded p-2.5 space-y-1.5 hover:border-zinc-750 transition-colors">
-                  <div className="flex items-start justify-between text-[10px] text-zinc-400">
+                <div key={note.id} className="border border-border bg-background/45 rounded p-2.5 space-y-1.5 hover:border-border transition-colors">
+                  <div className="flex items-start justify-between text-[10px] text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Star className="h-3 w-3 text-amber-500/70" />
-                      <span className="font-semibold text-zinc-300">{note.author}</span>
+                      <span className="font-semibold text-foreground/90">{note.author}</span>
                       <span>[{note.age}]</span>
                     </div>
-                    <span className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded font-mono text-[9px] text-amber-600/80">
+                    <span className="bg-muted border border-border px-1.5 py-0.5 rounded font-mono text-[9px] text-amber-600/80">
                       {note.loopName}
                     </span>
                   </div>
-                  <p className="text-xs text-zinc-300 leading-relaxed pl-4 border-l border-zinc-800">
+                  <p className="text-xs text-foreground/90 leading-relaxed pl-4 border-l border-border">
                     {note.text}
                   </p>
-                  <div className="flex items-center justify-end gap-3 text-[9px] text-zinc-550 font-semibold pt-1">
-                    <button type="button" className="hover:text-zinc-300 transition-colors">Add Comment</button>
+                  <div className="flex items-center justify-end gap-3 text-[9px] text-muted-foreground font-semibold pt-1">
+                    <button type="button" className="hover:text-foreground/90 transition-colors">Add Comment</button>
                     <button
                       type="button"
                       disabled={isLoading}
@@ -701,25 +701,25 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                     >
                       Delete Note
                     </button>
-                    <button type="button" className="hover:text-zinc-300 transition-colors">Unassigned</button>
+                    <button type="button" className="hover:text-foreground/90 transition-colors">Unassigned</button>
                   </div>
                 </div>
               ))}
 
               {notes.length === 0 && (
-                <div className="text-center py-8 text-xs text-zinc-650 italic">
+                <div className="text-center py-8 text-xs text-muted-foreground italic">
                   Belum ada catatan proyek.
                 </div>
               )}
             </div>
 
             {/* Note Input Box */}
-            <form onSubmit={handleAddNote} className="p-2.5 border-t border-zinc-800 bg-zinc-900/60 flex flex-col gap-2 shrink-0">
+            <form onSubmit={handleAddNote} className="p-2.5 border-t border-border bg-muted/60 flex flex-col gap-2 shrink-0">
               <div className="flex gap-2">
                 <select
                   value={selectedNoteLoop}
                   onChange={(e) => setSelectedNoteLoop(e.target.value)}
-                  className="bg-zinc-950 border border-zinc-800 text-[10px] rounded p-1 text-zinc-400 focus:outline-none focus:border-zinc-700 w-fit cursor-pointer"
+                  className="bg-background border border-border text-[10px] rounded p-1 text-muted-foreground focus:outline-none focus:border-border w-fit cursor-pointer"
                 >
                   <option value="">Pilih Loop (Opsional)</option>
                   {activeScene?.loops.map((l) => (
@@ -735,7 +735,7 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                   value={newNoteText}
                   onChange={(e) => setNewNoteText(e.target.value)}
                   placeholder="Ketik catatan atau umpan balik baru..."
-                  className="h-8.5 text-xs bg-zinc-950 border-zinc-850"
+                  className="h-8.5 text-xs bg-background border-border"
                   required
                 />
                 <Button type="submit" size="sm" disabled={isLoading} className="h-8 px-3 font-semibold text-xs shrink-0">
@@ -747,10 +747,10 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
         </div>
 
         {/* Right Column (Editor Workspace Area) */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-zinc-950">
+        <div className="flex-1 flex flex-col overflow-hidden bg-background">
           
           {/* Tabs row */}
-          <div className="h-10 bg-zinc-900 border-b border-zinc-800 flex shrink-0">
+          <div className="h-10 bg-muted border-b border-border flex shrink-0">
             {(["draft", "keyTerms", "transcribe", "backTranslate", "consult"] as const).map((tab) => {
               const labels: Record<string, string> = {
                 draft: "Draft",
@@ -766,10 +766,10 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                   type="button"
                   onClick={() => setActiveTab(tab)}
                   className={cn(
-                    "flex-1 text-xs font-bold tracking-wide uppercase border-r border-zinc-850 transition-all text-center focus:outline-none",
+                    "flex-1 text-xs font-bold tracking-wide uppercase border-r border-border transition-all text-center focus:outline-none",
                     isActive
-                      ? "bg-zinc-950 text-amber-500 border-b border-b-amber-500 font-black"
-                      : "text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-200"
+                      ? "bg-background text-amber-500 border-b border-b-amber-500 font-black"
+                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                   )}
                 >
                   {labels[tab]}
@@ -790,7 +790,7 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                     loopsWithDisplay.map(({ loop, text, note }) => {
                       const rec = loop.recording;
                       return (
-                        <div key={loop.id} className="p-3.5 flex items-start gap-4 hover:bg-zinc-900/10 transition-colors">
+                        <div key={loop.id} className="p-3.5 flex items-start gap-4 hover:bg-muted/10 transition-colors">
                           {/* Play Loop Button (simultaneous video, ref audio, and MNE) */}
                           <Button
                             variant="ghost"
@@ -798,8 +798,8 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                             className={cn(
                               "h-6 w-6 rounded-full border shrink-0 mt-0.5 transition-colors",
                               activeLoopPlayId === loop.id
-                                ? "bg-amber-600 border-transparent text-white hover:bg-amber-700"
-                                : "text-zinc-400 hover:text-white border-zinc-800 hover:bg-zinc-800"
+                                ? "bg-amber-600 border-transparent text-foreground hover:bg-amber-700"
+                                : "text-muted-foreground hover:text-foreground border-border hover:bg-secondary"
                             )}
                             onClick={() => handlePlayLoop(loop.id, loop.start_time_ms)}
                             title={activeLoopPlayId === loop.id ? "Hentikan Pemutaran Loop" : "Putar Loop (Video & Audio)"}
@@ -812,17 +812,17 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                           </Button>
 
                           {/* Loop Name */}
-                          <span className="text-xs font-bold text-zinc-500 font-mono shrink-0 select-none w-12 mt-1">
+                          <span className="text-xs font-bold text-muted-foreground font-mono shrink-0 select-none w-12 mt-1">
                             {loop.name}
                           </span>
 
                           {/* Text & Alternate Notes */}
                           <div className="flex-1 space-y-1.5">
-                            <p className="text-xs text-zinc-200 leading-relaxed font-semibold">
+                            <p className="text-xs text-foreground leading-relaxed font-semibold">
                               {text}
                             </p>
                             {note && (
-                              <p className="text-[10px] text-zinc-500 leading-relaxed pl-3 border-l border-zinc-800 font-medium">
+                              <p className="text-[10px] text-muted-foreground leading-relaxed pl-3 border-l border-border font-medium">
                                 {note}
                               </p>
                             )}
@@ -849,7 +849,7 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                                   size="sm"
                                   onClick={() => handlePlayAudio(rec.recorded_audio_url, rec.id)}
                                   className={cn(
-                                    "h-6 px-2 text-[9px] font-bold border-zinc-800 rounded bg-zinc-900/50 hover:bg-zinc-800 text-zinc-300 gap-1",
+                                    "h-6 px-2 text-[9px] font-bold border-border rounded bg-muted/50 hover:bg-secondary text-foreground/90 gap-1",
                                     playingAudioId === rec.id && "bg-primary text-primary-foreground border-primary"
                                   )}
                                 >
@@ -875,7 +875,7 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                                         size="sm"
                                         disabled={isLoading}
                                         onClick={() => handleStatusChange(rec.id, "approved")}
-                                        className="h-6 px-2 bg-green-600 hover:bg-green-700 text-white text-[9px] font-bold"
+                                        className="h-6 px-2 bg-green-600 hover:bg-green-700 text-foreground text-[9px] font-bold"
                                       >
                                         Setujui
                                       </Button>
@@ -885,7 +885,7 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                                       size="icon"
                                       disabled={isLoading}
                                       onClick={() => handleDeleteRecording(rec.id)}
-                                      className="h-6 w-6 text-zinc-550 hover:text-red-500"
+                                      className="h-6 w-6 text-muted-foreground hover:text-red-500"
                                       title="Hapus Rekaman"
                                     >
                                       <Trash2 className="h-3 w-3" />
@@ -894,8 +894,8 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                                 )}
                               </div>
                             ) : (
-                              <div className="w-14 h-6 border border-dashed border-zinc-800 rounded bg-zinc-950/40 flex items-center justify-center select-none">
-                                <span className="text-[9px] text-zinc-650 font-bold uppercase tracking-wider">Empty</span>
+                              <div className="w-14 h-6 border border-dashed border-border rounded bg-background/40 flex items-center justify-center select-none">
+                                <span className="text-[9px] text-muted-foreground font-bold uppercase tracking-wider">Empty</span>
                               </div>
                             )}
                           </div>
@@ -903,8 +903,8 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                       );
                     })
                   ) : (
-                    <div className="text-center py-12 border-2 border-dashed border-zinc-800 rounded-xl m-4">
-                      <p className="text-zinc-500 text-sm">Tidak ada scene yang ditemukan dalam proyek ini.</p>
+                    <div className="text-center py-12 border-2 border-dashed border-border rounded-xl m-4">
+                      <p className="text-muted-foreground text-sm">Tidak ada scene yang ditemukan dalam proyek ini.</p>
                     </div>
                   )}
                 </div>
@@ -912,10 +912,10 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
 
               {activeTab === "keyTerms" && (
                 <div className="p-4 space-y-4">
-                  <h3 className="text-sm font-bold text-zinc-300">Glosarium Kata Kunci (Key Terms)</h3>
-                  <div className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-900/10">
+                  <h3 className="text-sm font-bold text-foreground/90">Glosarium Kata Kunci (Key Terms)</h3>
+                  <div className="border border-border rounded-xl overflow-hidden bg-muted/10">
                     <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-zinc-900 text-zinc-400 border-b border-zinc-800 uppercase font-semibold">
+                      <thead className="bg-muted text-muted-foreground border-b border-border uppercase font-semibold">
                         <tr>
                           <th className="p-3">Kata Kunci</th>
                           <th className="p-3">Bahasa Asal</th>
@@ -926,15 +926,15 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                         {activeScene?.loops
                           .flatMap((l) => l.key_terms)
                           .map((term, index) => (
-                            <tr key={index} className="hover:bg-zinc-900/20">
-                              <td className="p-3 font-semibold text-zinc-200">{term.term}</td>
-                              <td className="p-3 font-mono text-zinc-450">{term.original_word || "-"}</td>
-                              <td className="p-3 text-zinc-450">Referensi glosarium lokal untuk ayat di scene ini.</td>
+                            <tr key={index} className="hover:bg-muted/20">
+                              <td className="p-3 font-semibold text-foreground">{term.term}</td>
+                              <td className="p-3 font-mono text-muted-foreground">{term.original_word || "-"}</td>
+                              <td className="p-3 text-muted-foreground">Referensi glosarium lokal untuk ayat di scene ini.</td>
                             </tr>
                           ))}
                         {(!activeScene || activeScene.loops.flatMap((l) => l.key_terms).length === 0) && (
                           <tr>
-                            <td colSpan={3} className="p-6 text-center text-zinc-500 italic">
+                            <td colSpan={3} className="p-6 text-center text-muted-foreground italic">
                               Tidak ada kata kunci di scene ini.
                             </td>
                           </tr>
@@ -946,7 +946,7 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
               )}
 
               {["transcribe", "backTranslate", "consult"].includes(activeTab) && (
-                <div className="text-center py-12 text-zinc-500 text-xs italic">
+                <div className="text-center py-12 text-muted-foreground text-xs italic">
                   Bagian evaluasi {activeTab} siap digunakan. Admin dapat meninjau rekaman draft suara yang terkumpul.
                 </div>
               )}
@@ -958,10 +958,10 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
       </div>
 
       {/* 3. Bottom Bar / Status Bar */}
-      <footer className="h-7 bg-zinc-900 border-t border-zinc-800 flex items-center justify-between px-3 text-[10px] text-zinc-400 shrink-0 select-none">
+      <footer className="h-7 bg-muted border-t border-border flex items-center justify-between px-3 text-[10px] text-muted-foreground shrink-0 select-none">
         <div className="flex items-center gap-3">
           <span>Scene {activeSceneIndex + 1} of {sortedScenes.length}</span>
-          <span className="text-zinc-800">|</span>
+          <span className="text-muted-foreground/50">|</span>
           <span className="font-mono">00:00:22:29</span>
         </div>
         <div className="flex items-center gap-1.5 font-mono">

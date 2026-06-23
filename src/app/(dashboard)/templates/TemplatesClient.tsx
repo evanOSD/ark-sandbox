@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Film, Plus, Trash2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { deleteTemplate } from "./actions";
 
 export interface Template {
@@ -12,6 +11,8 @@ export interface Template {
   description: string | null;
   video_url: string | null;
   audio_url: string | null;
+  total_scenes?: number;
+  total_loops?: number;
 }
 
 interface TemplatesClientProps {
@@ -48,68 +49,90 @@ export function TemplatesClient({
         )}
       </div>
 
-      {/* Templates Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {initialTemplates.map((t) => (
-          <Card key={t.id} className="group hover:border-primary/40 hover:shadow-md transition-all flex flex-col">
-            <CardHeader className="space-y-1">
-              <div className="flex items-start justify-between gap-2">
-                <CardTitle className="text-xl font-bold tracking-tight text-foreground line-clamp-1">
-                  {t.name}
-                </CardTitle>
-                {isAdmin && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={async () => {
-                      if (confirm("Menghapus template akan menghapus seluruh scene dan loop terkait. Lanjutkan?")) {
-                        await deleteTemplate(t.id);
-                      }
-                    }}
-                    className="text-muted-foreground hover:text-red-500 transition-colors shrink-0"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1 space-y-3">
-              <p className="text-sm text-muted-foreground line-clamp-2">
-                {t.description || "Tidak ada deskripsi template."}
-              </p>
-              <div className="text-xs space-y-1 bg-muted/40 p-2.5 rounded-lg border border-border">
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Video:</span>
-                  <span className="font-mono text-foreground truncate max-w-[150px]">
-                    {t.video_url ? "Tersedia" : "Tidak ada"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <span>Audio:</span>
-                  <span className="font-mono text-foreground truncate max-w-[150px]">
-                    {t.audio_url ? "Tersedia" : "Tidak ada"}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="border-t pt-4 bg-muted/20">
-              <Link href={`/templates/${t.id}`} className="w-full">
-                <Button variant="outline" className="w-full gap-2 font-semibold border-primary/20 hover:border-primary/50 text-primary hover:bg-primary/5">
-                  Kelola Scene & Loop <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-            </CardFooter>
-          </Card>
-        ))}
-        {initialTemplates.length === 0 && (
-          <div className="col-span-full border-2 border-dashed rounded-xl p-12 text-center">
-            <Film className="h-10 w-10 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium">Belum ada template master</h3>
-            <p className="text-muted-foreground text-sm mt-1">
-              Buat template master untuk mengunggah referensi video/audio penerjemahan.
-            </p>
-          </div>
-        )}
+      {/* Templates Table */}
+      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left whitespace-nowrap">
+            <thead className="text-xs text-muted-foreground uppercase bg-muted/50 border-b border-border">
+              <tr>
+                <th className="px-6 py-4 font-bold tracking-wider">Nama Template</th>
+                <th className="px-6 py-4 font-bold tracking-wider">Deskripsi</th>
+                <th className="px-6 py-4 font-bold tracking-wider">Total Scenes</th>
+                <th className="px-6 py-4 font-bold tracking-wider">Total Loops</th>
+                <th className="px-6 py-4 font-bold tracking-wider">Video</th>
+                <th className="px-6 py-4 font-bold tracking-wider">Audio</th>
+                <th className="px-6 py-4 font-bold tracking-wider text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {initialTemplates.map((t) => (
+                <tr key={t.id} className="hover:bg-muted/30 transition-colors group">
+                  <td className="px-6 py-4">
+                    <span className="font-bold text-foreground text-base tracking-tight">{t.name}</span>
+                  </td>
+                  <td className="px-6 py-4 max-w-xs truncate text-muted-foreground whitespace-normal line-clamp-2">
+                    {t.description || "-"}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className="font-mono text-base font-bold text-foreground">
+                      {t.total_scenes ?? 0}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className="font-mono text-base font-bold text-foreground">
+                      {t.total_loops ?? 0}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide uppercase ${t.video_url ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-zinc-500/10 text-zinc-500 border border-zinc-500/20'}`}>
+                      {t.video_url ? "Tersedia" : "Kosong"}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide uppercase ${t.audio_url ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-zinc-500/10 text-zinc-500 border border-zinc-500/20'}`}>
+                      {t.audio_url ? "Tersedia" : "Kosong"}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      {isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={async () => {
+                            if (confirm("Menghapus template akan menghapus seluruh scene dan loop terkait. Lanjutkan?")) {
+                              await deleteTemplate(t.id);
+                            }
+                          }}
+                          className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                          title="Hapus Template"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Link href={`/templates/${t.id}`}>
+                        <Button variant="outline" size="sm" className="gap-2 font-bold text-xs border-primary/20 hover:border-primary/50 text-primary hover:bg-primary/5 shadow-xs">
+                          Kelola Scene & Loop <ArrowRight className="h-3.5 w-3.5" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {initialTemplates.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-6 py-16 text-center">
+                    <Film className="h-10 w-10 text-muted-foreground/50 mx-auto mb-4" />
+                    <h3 className="text-lg font-bold text-foreground tracking-tight">Belum ada template master</h3>
+                    <p className="text-muted-foreground text-sm mt-1">
+                      Buat template master untuk mengunggah referensi video/audio penerjemahan.
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

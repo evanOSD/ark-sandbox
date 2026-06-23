@@ -7,7 +7,7 @@ interface WorkspaceTabsProps {
 
 export function WorkspaceTabs({ activeTab, setActiveTab }: WorkspaceTabsProps) {
   return (
-    <div className="h-10 bg-zinc-900 border-b border-zinc-800 flex shrink-0">
+    <div className="h-10 bg-muted border-b border-border flex shrink-0">
       {(["draft", "keyTerms", "transcribe", "backTranslate", "consult"] as const).map((tab) => {
         const labels: Record<string, string> = {
           draft: "Draft",
@@ -23,10 +23,10 @@ export function WorkspaceTabs({ activeTab, setActiveTab }: WorkspaceTabsProps) {
             type="button"
             onClick={() => setActiveTab(tab)}
             className={cn(
-              "flex-1 text-xs font-bold tracking-wide uppercase border-r border-zinc-850 transition-all text-center focus:outline-none",
+              "flex-1 text-xs font-bold tracking-wide uppercase border-r border-border transition-all text-center focus:outline-none",
               isActive
-                ? "bg-zinc-950 text-amber-500 border-b border-b-amber-500 font-black"
-                : "text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-200"
+                ? "bg-background text-amber-500 border-b border-b-amber-500 font-black"
+                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
             )}
           >
             {labels[tab]}

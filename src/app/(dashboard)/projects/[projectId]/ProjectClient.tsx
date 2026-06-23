@@ -89,6 +89,8 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [stitchedAudioUrls, setStitchedAudioUrls] = useState<Record<string, string>>({});
+  const [isStitching, setIsStitching] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
   const [prevScenes, setPrevScenes] = useState<Scene[]>(scenes);
@@ -291,15 +293,21 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
     const refAudio = refAudioRef.current;
     if (!refAudio || !activeAudioUrl) return;
 
+    let targetUrl = activeAudioUrl;
+    if (activeAudioUrl === "PROJECT_AUDIO" && activeScene) {
+      if (!stitchedAudioUrls[activeScene.id]) return; // wait for stitch
+      targetUrl = stitchedAudioUrls[activeScene.id];
+    }
+
     // Resolve URL to compare absolute locations correctly
-    const resolvedUrl = activeAudioUrl.startsWith("/")
-      ? window.location.origin + activeAudioUrl
-      : activeAudioUrl;
+    const resolvedUrl = targetUrl.startsWith("/")
+      ? window.location.origin + targetUrl
+      : targetUrl;
 
     if (refAudio.src === resolvedUrl) return;
 
     refAudio.pause();
-    refAudio.src = activeAudioUrl;
+    refAudio.src = targetUrl;
     refAudio.load();
 
     const setPositionAndPlay = () => {
@@ -318,7 +326,38 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
     return () => {
       refAudio.removeEventListener("loadedmetadata", setPositionAndPlay);
     };
-  }, [activeAudioUrl, isVideoPlaying]);
+  }, [activeAudioUrl, isVideoPlaying, activeScene, stitchedAudioUrls]);
+
+  // Auto-stitch logic when "PROJECT_AUDIO" is selected
+  useEffect(() => {
+    if (activeAudioUrl === "PROJECT_AUDIO" && activeScene && !stitchedAudioUrls[activeScene.id]) {
+      let isMounted = true;
+      const stitch = async () => {
+        setIsStitching(true);
+        try {
+          const { stitchSceneAudio } = await import('@/lib/audio-stitcher');
+          const loopsWithAudio = activeScene.loops
+            .filter(l => l.recording?.recorded_audio_url)
+            .map(l => ({
+              start_time_ms: l.start_time_ms,
+              audio_url: l.recording!.recorded_audio_url
+            }));
+
+          const maxEnd = Math.max(...activeScene.loops.map(l => l.end_time_ms), 1000);
+          const blobUrl = await stitchSceneAudio(loopsWithAudio, maxEnd);
+          if (blobUrl && isMounted) {
+            setStitchedAudioUrls(prev => ({ ...prev, [activeScene.id]: blobUrl }));
+          }
+        } catch (err) {
+          console.error(err);
+        } finally {
+          if (isMounted) setIsStitching(false);
+        }
+      };
+      stitch();
+      return () => { isMounted = false; };
+    }
+  }, [activeAudioUrl, activeScene, stitchedAudioUrls]);
 
   const handleToggleMne = () => {
     const nextState = !isMneEnabled;
@@ -511,21 +550,21 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
   });
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-zinc-950 text-zinc-100">
+    <div className="flex flex-col h-screen overflow-hidden bg-background text-foreground">
       
       {/* 1. Header/Top Bar */}
-      <header className="h-12 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4 shrink-0 z-10 select-none">
+      <header className="h-12 bg-muted border-b border-border flex items-center justify-between px-4 shrink-0 z-10 select-none">
         <div className="flex items-center gap-3">
           <Link href="/projects">
-            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-zinc-800 text-zinc-400 hover:text-foreground">
+            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-secondary text-muted-foreground hover:text-foreground">
               <ChevronLeft className="h-5 w-5" />
             </Button>
           </Link>
           <div className="flex items-center gap-2">
-            <span className="font-bold text-sm tracking-tight text-zinc-200">{project.name}</span>
+            <span className="font-bold text-sm tracking-tight text-foreground">{project.name}</span>
             {isAdmin && (
               <Link href={`/projects/${project.id}/edit`}>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-primary" title="Edit Proyek">
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" title="Edit Proyek">
                   <ShieldCheck className="h-4 w-4" />
                 </Button>
               </Link>
@@ -535,21 +574,21 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
 
         {/* Center: Scene Selector Switcher */}
         {sortedScenes.length > 0 && (
-          <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-850 px-3 py-1 rounded text-xs select-none">
+          <div className="flex items-center gap-2 bg-background border border-border px-3 py-1 rounded text-xs select-none">
             <button
               type="button"
-              className="text-zinc-500 hover:text-white disabled:opacity-30"
+              className="text-muted-foreground hover:text-foreground disabled:opacity-30"
               onClick={() => setActiveSceneIndex((prev) => Math.max(0, prev - 1))}
               disabled={activeSceneIndex === 0}
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="font-black text-zinc-100 px-2 tracking-wide uppercase">
+            <span className="font-black text-foreground px-2 tracking-wide uppercase">
               {activeSceneIndex + 1} - {activeScene?.name || "Scene"}
             </span>
             <button
               type="button"
-              className="text-zinc-500 hover:text-white disabled:opacity-30"
+              className="text-muted-foreground hover:text-foreground disabled:opacity-30"
               onClick={() => setActiveSceneIndex((prev) => Math.min(sortedScenes.length - 1, prev + 1))}
               disabled={activeSceneIndex === sortedScenes.length - 1}
             >
@@ -559,7 +598,7 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
         )}
 
         {/* Right side: Global Save Status Info */}
-        <div className="flex items-center gap-1.5 text-[10px] text-zinc-400 select-none font-medium pr-1">
+        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground select-none font-medium pr-1">
           {saveStatus === "saving" && (
             <>
               <span className="w-1.5 h-1.5 rounded-full bg-amber-550 animate-pulse" />
@@ -585,7 +624,7 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
       <div className="flex flex-1 overflow-hidden">
         
         {/* Left Column (Video Player & Notes/Comments) */}
-        <div className="w-[40%] flex flex-col border-r border-zinc-800 overflow-hidden shrink-0">
+        <div className="w-[40%] flex flex-col border-r border-border overflow-hidden shrink-0">
           <VideoPlayer
             project={project}
             videoRef={videoRef}
@@ -598,6 +637,8 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
             toggleVideoPlayback={toggleVideoPlayback}
             handleStopVideo={handleStopVideo}
             handleToggleMne={handleToggleMne}
+            stitchedAudioUrl={activeScene ? stitchedAudioUrls[activeScene.id] : null}
+            isStitching={isStitching}
           />
           
           <NotesPanel
@@ -614,7 +655,7 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
         </div>
 
         {/* Right Column (Editor Workspace Area) */}
-        <div className="flex-1 flex flex-col overflow-hidden bg-zinc-950">
+        <div className="flex-1 flex flex-col overflow-hidden bg-background">
           <WorkspaceTabs
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -659,10 +700,10 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
       </div>
 
       {/* 3. Bottom Bar / Status Bar */}
-      <footer className="h-7 bg-zinc-900 border-t border-zinc-800 flex items-center justify-between px-3 text-[10px] text-zinc-400 shrink-0 select-none">
+      <footer className="h-7 bg-muted border-t border-border flex items-center justify-between px-3 text-[10px] text-muted-foreground shrink-0 select-none">
         <div className="flex items-center gap-3">
           <span>Scene {activeSceneIndex + 1} of {sortedScenes.length}</span>
-          <span className="text-zinc-800">|</span>
+          <span className="text-muted-foreground/50">|</span>
           <span className="font-mono">00:00:22:29</span>
         </div>
         <div className="flex items-center gap-1.5 font-mono">

@@ -295,7 +295,7 @@ export function TemplateClient({ template, scenes }: TemplateClientProps) {
                 ))}
                 {template.mne_audio_url && (
                   <div className="flex items-center gap-2 justify-between border-t border-border/40 pt-1.5 mt-1.5">
-                    <span className="font-semibold text-zinc-300">Music & Effects (M&E)</span>
+                    <span className="font-semibold text-foreground">Music & Effects (M&E)</span>
                     <a href={template.mne_audio_url} target="_blank" rel="noreferrer" className="text-primary hover:underline font-mono truncate max-w-[200px] sm:max-w-xs md:max-w-md">
                       {template.mne_audio_url}
                     </a>
@@ -309,7 +309,7 @@ export function TemplateClient({ template, scenes }: TemplateClientProps) {
                 </a>
                 {template.mne_audio_url && (
                   <div className="flex items-center gap-2 justify-between border-t border-border/40 pt-1.5 mt-1.5">
-                    <span className="font-semibold text-zinc-300">Music & Effects (M&E)</span>
+                    <span className="font-semibold text-foreground">Music & Effects (M&E)</span>
                     <a href={template.mne_audio_url} target="_blank" rel="noreferrer" className="text-primary hover:underline font-mono truncate block">
                       {template.mne_audio_url}
                     </a>
