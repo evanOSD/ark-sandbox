@@ -603,7 +603,7 @@ export function WorkspaceClient({ project, loop, existingRecordingUrl }: Workspa
                     disabled={isSaving || isRecording}
                   >
                     {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                    Kirim Rekaman
+                    Simpan Rekaman
                   </Button>
                   <Button
                     variant="outline"

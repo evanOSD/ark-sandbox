@@ -7,20 +7,14 @@ import RegionsPlugin, { Region } from "wavesurfer.js/dist/plugins/regions.js";
 import TimelinePlugin from "wavesurfer.js/dist/plugins/timeline.js";
 import RecordPlugin from "wavesurfer.js/dist/plugins/record.js";
 import HoverPlugin from "wavesurfer.js/dist/plugins/hover.js";
-import { BookOpen } from "lucide-react";
+import { Square, Loader2, Play, Pause, Trash2, Scissors, Upload, Sliders, BookOpen, Volume2, X, Volume1, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { WavRecorder } from "@/lib/wav-recorder";
 import { getCloudinaryConfig } from "@/app/(dashboard)/templates/actions";
 import { saveRecording } from "../../../../../loops/actions";
 import { saveLocalRecording, getLocalRecording, clearLocalRecording } from "@/lib/indexeddb";
 import { Project, Loop } from "../WorkspaceClient";
-import { AudioSourceTabs } from "./audio-editor/AudioSourceTabs";
-import { AudioSettingsPopover } from "./audio-editor/AudioSettingsPopover";
-import { ScriptDisplay } from "./audio-editor/ScriptDisplay";
-import { ReferenceWaveform } from "./audio-editor/ReferenceWaveform";
-import { RecordingWaveform } from "./audio-editor/RecordingWaveform";
-import { RecordingControls } from "./audio-editor/RecordingControls";
-import { UnsavedBanner } from "./audio-editor/UnsavedBanner";
 
 // Helper encoding PCM 24-bit 48kHz Mono WAV
 function encodeWav24Bit(samples: Float32Array, sampleRate: number): Blob {
@@ -469,12 +463,6 @@ export default function AudioEditor({
     setRecorderInstance(null);
     recorderRef.current = null;
 
-    // RecordPlugin sets interact=false during startMic() but never restores it
-    // when renderRecordedAudio is false. Re-enable so user can click-to-seek.
-    if (recWavesurfer.current) {
-      recWavesurfer.current.setOptions({ interact: true });
-    }
-
     await saveLocalRecording(project.id, loop.id, blob);
   };
 
@@ -825,101 +813,368 @@ export default function AudioEditor({
       {isRecording && (
         <div className="absolute inset-0 bg-red-500/5 border border-red-500/10 animate-pulse pointer-events-none z-10" />
       )}
-
-      {/* ── Top bar: source tabs + action buttons ── */}
       <div className="border-b border-border p-2 flex flex-row items-center justify-between shrink-0 bg-muted/10">
-        <AudioSourceTabs
-          audioSources={audioSources}
-          activeTabIdx={activeTabIdx}
-          onTabChange={handleTabChange}
-        />
-        <div className="flex items-center gap-2">
-          <Button
-            variant={isKeyTermsOpen ? "default" : "outline"}
-            size="sm"
-            onClick={onToggleKeyTerms}
-            className={`w-fit cursor-pointer h-8 text-xs font-semibold m-0 transition-colors ${
-              isKeyTermsOpen
-                ? "bg-indigo-600 hover:bg-indigo-700 text-white border-transparent"
-                : "text-foreground"
-            }`}
-          >
-            <BookOpen
-              className={`w-3.5 h-3.5 mr-1.5 ${
-                isKeyTermsOpen ? "text-white" : "text-indigo-500"
-              }`}
-            />{" "}
-            Kamus Kata Kunci
-          </Button>
-          <AudioSettingsPopover
-            isRecording={isRecording}
-            noiseSuppression={noiseSuppression}
-            autoGainControl={autoGainControl}
-            echoCancellation={echoCancellation}
-            onToggleNoiseSuppression={toggleNoiseSuppression}
-            onToggleAutoGainControl={toggleAutoGainControl}
-            onToggleEchoCancellation={toggleEchoCancellation}
-          />
+        <div className="flex flex-wrap gap-1.5 p-1 bg-background border border-border rounded-lg w-fit">
+          {audioSources.length > 0 ? (
+            audioSources.map((source, index) => (
+              <Button
+                key={source.name}
+                type="button"
+                variant="ghost"
+                onClick={() => handleTabChange(index)}
+                className={`h-8.5 text-xs font-semibold px-4 transition-all rounded-md ${
+                  activeTabIdx === index
+                    ? "bg-indigo-600 text-white shadow-md hover:bg-indigo-700"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted bg-transparent"
+                }`}
+              >
+                {source.name}
+              </Button>
+            ))
+          ) : (
+            <div className="h-8.5 px-4 flex items-center text-xs font-semibold text-muted-foreground">Default</div>
+          )}
         </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant={isKeyTermsOpen ? "default" : "outline"} 
+                size="sm" 
+                onClick={onToggleKeyTerms}
+                className={`w-fit cursor-pointer h-8 text-xs font-semibold m-0 transition-colors ${isKeyTermsOpen ? "bg-indigo-600 hover:bg-indigo-700 text-white border-transparent" : "text-foreground"}`}
+              >
+                <BookOpen className={`w-3.5 h-3.5 mr-1.5 ${isKeyTermsOpen ? "text-white" : "text-indigo-500"}`} /> Kamus Kata Kunci
+              </Button>
+              <Popover>
+                <PopoverTrigger render={<Button variant="outline" size="sm" className="w-fit cursor-pointer h-8 text-xs font-semibold m-0" style={{ marginTop: 0 }} />}>
+                  <Sliders className="w-3.5 h-3.5 mr-1.5 text-emerald-500" /> Audio Settings
+                </PopoverTrigger>
+              <PopoverContent className="w-[220px] p-2" align="end">
+                <div className="space-y-2 text-foreground">
+                  <div className="flex items-center justify-between border-b border-border pb-1.5 px-1">
+                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <Sliders className="w-3 h-3 text-emerald-500" /> Audio Settings
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={toggleNoiseSuppression}
+                      disabled={isRecording}
+                      className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all duration-200 ${
+                        isRecording ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+                      } ${
+                        noiseSuppression
+                          ? "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/15"
+                          : "bg-background/40 border-border hover:bg-muted/60"
+                      }`}
+                    >
+                      <div className="flex flex-col pr-1.5">
+                        <span className="text-[10px] font-bold text-foreground">Noise Suppression</span>
+                        <span className="text-[8px] text-muted-foreground mt-0.5 leading-tight">Reduksi bising sekitar</span>
+                      </div>
+                      <span className={`shrink-0 text-[8px] font-bold px-1.5 py-0.5 rounded ${noiseSuppression ? "bg-emerald-500/20 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                        {noiseSuppression ? "ON" : "OFF"}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleAutoGainControl}
+                      disabled={isRecording}
+                      className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all duration-200 ${
+                        isRecording ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+                      } ${
+                        autoGainControl
+                          ? "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/15"
+                          : "bg-background/40 border-border hover:bg-muted/60"
+                      }`}
+                    >
+                      <div className="flex flex-col pr-1.5">
+                        <span className="text-[10px] font-bold text-foreground">Auto Gain Control</span>
+                        <span className="text-[8px] text-muted-foreground mt-0.5 leading-tight">Penyesuaian volume</span>
+                      </div>
+                      <span className={`shrink-0 text-[8px] font-bold px-1.5 py-0.5 rounded ${autoGainControl ? "bg-emerald-500/20 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                        {autoGainControl ? "ON" : "OFF"}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleEchoCancellation}
+                      disabled={isRecording}
+                      className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all duration-200 ${
+                        isRecording ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+                      } ${
+                        echoCancellation
+                          ? "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/15"
+                          : "bg-background/40 border-border hover:bg-muted/60"
+                      }`}
+                    >
+                      <div className="flex flex-col pr-1.5">
+                        <span className="text-[10px] font-bold text-foreground">Echo Cancellation</span>
+                        <span className="text-[8px] text-muted-foreground mt-0.5 leading-tight">Mencegah gema speaker</span>
+                      </div>
+                      <span className={`shrink-0 text-[8px] font-bold px-1.5 py-0.5 rounded ${echoCancellation ? "bg-emerald-500/20 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                        {echoCancellation ? "ON" : "OFF"}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+            </div>
       </div>
 
-      {/* ── Main content ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="border-b border-border space-y-1 bg-muted/5 shrink-0">
-          {/* Script + reference audio controls */}
-          <ScriptDisplay
-            scriptText={currentScriptText}
-            sourceName={audioSources[activeTabIdx]?.name || "Default"}
-            isRefPlaying={isRefPlaying}
-            onToggleRefPlay={toggleRefPlay}
-            onStopRefPlay={stopRefPlay}
-          />
+            {/* Script Display Overlay */}
+            <div className="p-4 rounded-xl border border-border bg-muted/30 relative min-h-[90px]">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="text-[10px] text-indigo-400 uppercase font-bold tracking-widest">
+                  Naskah Skrip ({audioSources[activeTabIdx]?.name || "Default"})
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleRefPlay}
+                    className="h-6 text-[10px] font-semibold text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 hover:text-emerald-400 bg-background/40 px-2"
+                  >
+                    {isRefPlaying ? <Pause className="w-3 h-3 mr-1" /> : <Play className="w-3 h-3 mr-1" />}
+                    {isRefPlaying ? "Pause" : "Putar Referensi"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={stopRefPlay}
+                    className="h-6 text-[10px] font-semibold text-rose-500 border-rose-950/40 hover:bg-rose-950/20 hover:text-rose-400 bg-background/40 px-2"
+                  >
+                    <Square className="w-3 h-3 mr-1" />
+                    Stop
+                  </Button>
+                </div>
+              </div>
+              <p className="text-sm text-foreground leading-relaxed font-medium">
+                {currentScriptText || <span className="text-muted-foreground italic">Skrip teks tidak tersedia untuk tab ini.</span>}
+              </p>
+            </div>
 
-          {/* Waveforms */}
-          <div className="space-y-2">
-            <ReferenceWaveform
-              containerRef={refContainerRef}
-              durationMs={loop.end_time_ms - loop.start_time_ms}
-            />
-            <RecordingWaveform
-              containerRef={recContainerRef}
-              isRecording={isRecording}
-              recordingTimeMs={recordingTimeMs}
-              recCursorTime={recCursorTime}
-              loopDurationMs={loop.end_time_ms - loop.start_time_ms}
-            />
+            {/* Wavesurfer Container */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 px-4">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Audio Referensi</span>
+                <span className="text-[10px] font-mono font-bold text-indigo-500">
+                  {((loop.end_time_ms - loop.start_time_ms) / 1000).toFixed(2)}s
+                </span>
+              </div>
+              <div ref={refContainerRef} className="w-full bg-background border border-border rounded-xl p-2.5 cursor-text" />
+              <div className="w-full pt-2 relative">
+                <div ref={recContainerRef} className="w-full relative bg-background border border-border rounded-xl p-3 min-h-[90px] cursor-text">
+                  {/* Black Cursor Time Indicator */}
+                  <div 
+                    className="absolute top-1 -translate-x-1/2 bg-black text-white text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm z-10 pointer-events-none transition-all duration-75"
+                    style={{ 
+                      left: `calc(12px + calc(100% - 24px) * ${(isRecording ? recordingTimeMs / 1000 : recCursorTime) / Math.max(0.1, (loop.end_time_ms - loop.start_time_ms) / 1000)})` 
+                    }}
+                  >
+                    {(isRecording ? recordingTimeMs / 1000 : recCursorTime).toFixed(2)}s
+                  </div>
+                </div>
+              </div>
+                  
+              {/* Audio Editor Controls (Trim/Delete & Record) */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-muted/60 p-2.5 rounded-xl border border-border mt-2">
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title={isRecPlaying ? "Pause" : "Putar"}
+                    onClick={toggleRecPlay}
+                    disabled={!recordedUrl}
+                    className="h-8 w-8 text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 hover:text-emerald-400 bg-background/40 disabled:opacity-50"
+                  >
+                    {isRecPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  </Button>
 
-            {/* Edit + record controls */}
-            <RecordingControls
-              recordedUrl={recordedUrl}
-              isRecPlaying={isRecPlaying}
-              onToggleRecPlay={toggleRecPlay}
-              onStopRecPlay={stopRecPlay}
-              selectedRegion={selectedRegion}
-              onTrim={handleTrim}
-              onMuteSelection={handleMuteSelection}
-              onNormalize={handleNormalize}
-              onNormalizeSelection={handleNormalizeSelection}
-              onClearSelection={handleClearSelection}
-              onDiscardRecording={handleDiscardRecording}
-              isRecording={isRecording}
-              isPaused={isPaused}
-              recordingTimeMs={recordingTimeMs}
-              loopDurationMs={loop.end_time_ms - loop.start_time_ms}
-              isUploading={isUploading}
-              recordedDuration={recordedDuration}
-              onStartRecording={startRecording}
-              onPauseRecording={pauseRecording}
-              onResumeRecording={resumeRecording}
-              onStopRecording={stopRecording}
-              onUploadRecording={handleUploadRecording}
-            />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Stop"
+                    onClick={stopRecPlay}
+                    disabled={!recordedUrl}
+                    className="h-8 w-8 text-rose-500 border-rose-950/40 hover:bg-rose-950/20 hover:text-rose-400 bg-background/40 disabled:opacity-50"
+                  >
+                    <Square className="w-4 h-4" />
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Trim Seleksi"
+                    onClick={handleTrim}
+                    disabled={!selectedRegion || !recordedUrl}
+                    className="h-8 w-8 border-border text-foreground/90 hover:text-foreground hover:bg-muted bg-background/40 disabled:opacity-50"
+                  >
+                    <Scissors className="w-4 h-4" />
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Mute / Silent Seleksi"
+                    onClick={handleMuteSelection}
+                    disabled={!selectedRegion || !recordedUrl}
+                    className="h-8 w-8 text-red-400 border-red-950/40 hover:bg-red-950/20 hover:text-red-300 disabled:opacity-50"
+                  >
+                    <VolumeX className="w-4 h-4" />
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Normalize (-6dB)"
+                    onClick={handleNormalize}
+                    disabled={!recordedUrl}
+                    className="h-8 w-8 border-border text-foreground/90 hover:text-foreground hover:bg-muted bg-background/40 disabled:opacity-50"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    title="Normalize Seleksi (-6dB)"
+                    onClick={handleNormalizeSelection}
+                    disabled={!selectedRegion || !recordedUrl}
+                    className="h-8 w-8 border-border text-foreground/90 hover:text-foreground hover:bg-muted bg-background/40 disabled:opacity-50"
+                  >
+                    <Volume1 className="w-4 h-4" />
+                  </Button>
+
+                  {(recordedUrl || isRecording) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      title="Hapus Semua"
+                      onClick={handleDiscardRecording}
+                      className="h-8 w-8 bg-red-600 text-black hover:bg-red-500 hover:text-black border-none transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {selectedRegion && (
+                    <div className="flex items-center gap-2 bg-muted/50 border border-border rounded px-2 py-1">
+                      <span className="text-[10px] text-muted-foreground font-mono font-bold">
+                        Seleksi: {selectedRegion.start.toFixed(2)}s - {selectedRegion.end.toFixed(2)}s (Durasi: {(selectedRegion.end - selectedRegion.start).toFixed(2)}s)
+                      </span>
+                      <button 
+                        type="button" 
+                        onClick={handleClearSelection}
+                        title="Batal Seleksi"
+                        className="text-muted-foreground hover:text-foreground hover:bg-muted-foreground/20 rounded-full p-0.5 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                  
+                  {isRecording ? (
+                    <div className="flex items-center gap-3">
+                      {/* Timer Display */}
+                      <div className="text-xs font-mono font-bold text-red-400">
+                        {(recordingTimeMs / 1000).toFixed(2)}s / {((loop.end_time_ms - loop.start_time_ms) / 1000).toFixed(2)}s
+                      </div>
+
+                      {/* Pause / Resume Button */}
+                      {isPaused ? (
+                        <button
+                          type="button"
+                          className="h-8 w-8 rounded-full border-2 border-red-600 bg-transparent hover:bg-red-950/30 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group animate-pulse"
+                          title="Lanjutkan Merekam (Append)"
+                          onClick={resumeRecording}
+                        >
+                          <span className="w-3 h-3 rounded-full bg-red-500 group-hover:scale-110 transition-transform" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="h-8 w-8 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group animate-pulse"
+                          title="Jeda Rekaman (Pause)"
+                          onClick={pauseRecording}
+                        >
+                          <Pause className="h-3.5 w-3.5 fill-white text-white" />
+                        </button>
+                      )}
+
+                      {/* Finalize / Stop Button */}
+                      <button
+                        type="button"
+                        className="h-8 px-2.5 rounded bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-white flex items-center shadow-lg transition-colors"
+                        title="Selesai Merekam"
+                        onClick={stopRecording}
+                      >
+                        <Square className="h-3 w-3 fill-white mr-1.5" /> Stop
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        className="h-8 w-8 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group disabled:opacity-50 disabled:pointer-events-none"
+                        title="Mulai Rekam Baru"
+                        onClick={startRecording}
+                        disabled={isUploading}
+                      >
+                        <span className="w-3 h-3 rounded-full bg-white group-hover:scale-110 transition-transform" />
+                      </button>
+
+                      {/* Duration Display when not recording */}
+                      {recordedUrl && (
+                        <div className="text-xs font-mono font-bold text-emerald-500">
+                          {recordedDuration.toFixed(2)}s / {((loop.end_time_ms - loop.start_time_ms) / 1000).toFixed(2)}s
+                        </div>
+                      )}
+
+                      {/* Upload Button moved into controls */}
+                      {recordedUrl && !isRecording && (
+                        <Button
+                          className="h-8 text-xs font-bold gap-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-950 shadow-sm"
+                          onClick={handleUploadRecording}
+                          disabled={isUploading}
+                        >
+                          {isUploading ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Upload className="w-3.5 h-3.5" />
+                          )}
+                          Simpan Rekaman
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-
-        {/* Footer area */}
-        <div className="p-5 space-y-2 flex-1 overflow-y-auto">
-          {isUnsavedLocal && <UnsavedBanner />}
+          <div className="p-5 space-y-2 flex-1 overflow-y-auto">
+            {/* Status warning unsaved */}
+            {isUnsavedLocal && (
+              <div className="bg-amber-500/10 text-amber-500 text-xs px-3 py-2.5 rounded-xl border border-amber-500/20 text-center font-semibold animate-pulse">
+                Ada rekaman lokal yang belum dikirim ke Cloudinary.
+              </div>
+            )}
         </div>
       </div>
     </div>
