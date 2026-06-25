@@ -69,7 +69,7 @@ export function LoginForm({ message }: LoginFormProps) {
         window.open(
           data.url,
           "supabase-oauth",
-          `width=${width},height=${height},left=${left},top=${top},popup=true`
+          `width=${width},height=${height},left=${left},top=${top},popup=true`,
         );
       }
     } catch (err) {
@@ -85,7 +85,7 @@ export function LoginForm({ message }: LoginFormProps) {
         <CardTitle className="text-4xl font-black tracking-tighter text-primary">
           ARK
         </CardTitle>
-        <CardDescription>Audio Recording Kit</CardDescription>
+        <CardDescription>Audio Recording Kits</CardDescription>
       </CardHeader>
 
       <form>
@@ -124,7 +124,9 @@ export function LoginForm({ message }: LoginFormProps) {
           {/* Password field — only shown when NOT an email */}
           <div
             className={`space-y-2 overflow-hidden transition-all duration-300 ${
-              isEmail ? "max-h-0 opacity-0 pointer-events-none" : "max-h-40 opacity-100"
+              isEmail
+                ? "max-h-0 opacity-0 pointer-events-none"
+                : "max-h-40 opacity-100"
             }`}
           >
             <Label htmlFor="password">Password</Label>
@@ -144,7 +146,9 @@ export function LoginForm({ message }: LoginFormProps) {
           {/* Username/password sign-in — hidden when email is detected */}
           <div
             className={`w-full overflow-hidden transition-all duration-300 ${
-              isEmail ? "max-h-0 opacity-0 pointer-events-none" : "max-h-20 opacity-100"
+              isEmail
+                ? "max-h-0 opacity-0 pointer-events-none"
+                : "max-h-20 opacity-100"
             }`}
           >
             <Button

@@ -2,10 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Folder, Film, Users, Settings, LogOut, Menu } from "lucide-react";
+import {
+  LayoutDashboard,
+  Folder,
+  Film,
+  Users,
+  Settings,
+  LogOut,
+  Menu,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { logout } from "@/app/login/actions";
+import Image from "next/image";
 
 interface SidebarProps {
   role: string;
@@ -14,12 +23,21 @@ interface SidebarProps {
   toggleSidebar?: () => void;
 }
 
-export function Sidebar({ role, username, isCollapsed = false, toggleSidebar }: SidebarProps) {
+export function Sidebar({
+  role,
+  username,
+  isCollapsed = false,
+  toggleSidebar,
+}: SidebarProps) {
   const pathname = usePathname();
 
   const menuItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
-    { icon: Folder, label: role === "admin" ? "Proyek" : "Proyek Saya", href: "/projects" },
+    {
+      icon: Folder,
+      label: role === "admin" ? "Proyek" : "Proyek Saya",
+      href: "/projects",
+    },
     ...(role === "admin"
       ? [
           { icon: Film, label: "Templates", href: "/templates" },
@@ -33,14 +51,14 @@ export function Sidebar({ role, username, isCollapsed = false, toggleSidebar }: 
     <aside
       className={cn(
         "hidden flex-col border-r bg-card md:flex transition-all duration-300 ease-in-out shrink-0",
-        isCollapsed ? "w-16" : "w-64"
+        isCollapsed ? "w-16" : "w-64",
       )}
     >
       {/* Sidebar Header Toggler Row */}
       <div
         className={cn(
           "flex h-14 items-center border-b transition-all duration-300 ease-in-out",
-          isCollapsed ? "px-2 justify-center" : "px-4 lg:px-6"
+          isCollapsed ? "px-2 justify-center" : "px-4 lg:px-6",
         )}
       >
         {!isCollapsed ? (
@@ -48,10 +66,19 @@ export function Sidebar({ role, username, isCollapsed = false, toggleSidebar }: 
             <button
               type="button"
               onClick={toggleSidebar}
-              className="flex items-center gap-2 font-bold text-2xl tracking-tight text-foreground hover:opacity-80 transition-opacity shrink-0"
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0"
               title="Sembunyikan Sidebar"
             >
-              <span className="text-primary font-black">ARK</span>
+              <Image
+                src="/logo/logo-ark-main-transparent.svg"
+                alt="ARK Logo"
+                width={32}
+                height={32}
+                className="h-8 w-8"
+              />
+              <span className="font-bold text-2xl tracking-tight text-primary">
+                ARK
+              </span>
             </button>
             <Button
               variant="ghost"
@@ -82,7 +109,12 @@ export function Sidebar({ role, username, isCollapsed = false, toggleSidebar }: 
             Menu ({role})
           </div>
         )}
-        <nav className={cn("grid items-start text-sm font-medium space-y-1", isCollapsed ? "px-1.5" : "px-2 lg:px-4")}>
+        <nav
+          className={cn(
+            "grid items-start text-sm font-medium space-y-1",
+            isCollapsed ? "px-1.5" : "px-2 lg:px-4",
+          )}
+        >
           {menuItems.map((item, index) => {
             const isActive = pathname.startsWith(item.href);
             return (
@@ -94,7 +126,7 @@ export function Sidebar({ role, username, isCollapsed = false, toggleSidebar }: 
                   isCollapsed ? "justify-center px-0" : "gap-3 px-3",
                   isActive
                     ? "bg-primary/10 text-primary font-semibold"
-                    : "text-muted-foreground hover:bg-muted/50"
+                    : "text-muted-foreground hover:bg-muted/50",
                 )}
                 title={isCollapsed ? item.label : undefined}
               >
@@ -106,11 +138,16 @@ export function Sidebar({ role, username, isCollapsed = false, toggleSidebar }: 
         </nav>
       </div>
 
-      <div className={cn("mt-auto border-t space-y-3 transition-all duration-300 ease-in-out", isCollapsed ? "p-2" : "p-4")}>
+      <div
+        className={cn(
+          "mt-auto border-t space-y-3 transition-all duration-300 ease-in-out",
+          isCollapsed ? "p-2" : "p-4",
+        )}
+      >
         <div
           className={cn(
             "flex items-center bg-muted/40 rounded-lg transition-all duration-300 ease-in-out w-full",
-            isCollapsed ? "p-1 justify-center" : "gap-2 px-2 py-1.5"
+            isCollapsed ? "p-1 justify-center" : "gap-2 px-2 py-1.5",
           )}
           title={isCollapsed ? `${username} (${role})` : undefined}
         >
@@ -119,8 +156,12 @@ export function Sidebar({ role, username, isCollapsed = false, toggleSidebar }: 
           </div>
           {!isCollapsed && (
             <div className="flex flex-col truncate">
-              <span className="text-xs font-semibold truncate text-foreground">{username}</span>
-              <span className="text-[10px] text-muted-foreground capitalize">{role}</span>
+              <span className="text-xs font-semibold truncate text-foreground">
+                {username}
+              </span>
+              <span className="text-[10px] text-muted-foreground capitalize">
+                {role}
+              </span>
             </div>
           )}
         </div>
@@ -130,7 +171,7 @@ export function Sidebar({ role, username, isCollapsed = false, toggleSidebar }: 
             variant="ghost"
             className={cn(
               "w-full gap-2 text-muted-foreground hover:text-foreground transition-all duration-300 ease-in-out",
-              isCollapsed ? "justify-center px-0" : "justify-start px-3"
+              isCollapsed ? "justify-center px-0" : "justify-start px-3",
             )}
             title={isCollapsed ? "Logout" : undefined}
           >
