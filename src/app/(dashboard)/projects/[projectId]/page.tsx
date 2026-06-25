@@ -88,7 +88,9 @@ export default async function ProjectDetailsPage({ params }: PageProps) {
   // Fetch project details
   const { data: rawProject } = await supabase
     .from("projects")
-    .select("id, name, description, template_id, templates(name, video_url, audio_url_1, audio_label_1, audio_url_2, audio_label_2, audio_url_3, audio_label_3, audio_url_4, audio_label_4, mne_audio_url)")
+    .select(
+      "id, name, description, template_id, templates(name, video_url, audio_url_1, audio_label_1, audio_url_2, audio_label_2, audio_url_3, audio_label_3, audio_url_4, audio_label_4, mne_audio_url)",
+    )
     .eq("id", projectId)
     .maybeSingle();
 
@@ -116,37 +118,51 @@ export default async function ProjectDetailsPage({ params }: PageProps) {
       audio_sources.push({ name: t.audio_label_1 || "TB", url: t.audio_url_1 });
     }
     if (t.audio_url_2) {
-      audio_sources.push({ name: t.audio_label_2 || "BIMK", url: t.audio_url_2 });
+      audio_sources.push({
+        name: t.audio_label_2 || "BIMK",
+        url: t.audio_url_2,
+      });
     }
     if (t.audio_url_3) {
-      audio_sources.push({ name: t.audio_label_3 || "Audio 3", url: t.audio_url_3 });
+      audio_sources.push({
+        name: t.audio_label_3 || "Audio 3",
+        url: t.audio_url_3,
+      });
     }
     if (t.audio_url_4) {
-      audio_sources.push({ name: t.audio_label_4 || "Audio 4", url: t.audio_url_4 });
+      audio_sources.push({
+        name: t.audio_label_4 || "Audio 4",
+        url: t.audio_url_4,
+      });
     }
   }
 
   const project = {
     ...rawProject,
-    templates: t ? {
-      name: t.name,
-      video_url: t.video_url,
-      audio_url: t.audio_url_1 || null,
-      audio_sources,
-      mne_audio_url: t.mne_audio_url || null,
-    } : null
+    templates: t
+      ? {
+          name: t.name,
+          video_url: t.video_url,
+          audio_url: t.audio_url_1 || null,
+          audio_sources,
+          mne_audio_url: t.mne_audio_url || null,
+        }
+      : null,
   };
 
   // Fetch all recordings for this project
   const { data: recordings } = await supabase
     .from("recordings")
-    .select("id, template_loop_id, recorded_audio_url, status, translated_text, created_at, recorded_by_user:users(username)")
+    .select(
+      "id, template_loop_id, recorded_audio_url, status, translated_text, created_at, recorded_by_user:users(username)",
+    )
     .eq("project_id", projectId);
 
   // Fetch scenes, loops and key terms for the linked template
   const { data: rawScenes } = await supabase
     .from("template_scenes")
-    .select(`
+    .select(
+      `
       id,
       name,
       sequence_number,
@@ -168,16 +184,21 @@ export default async function ProjectDetailsPage({ params }: PageProps) {
           )
         )
       )
-    `)
+    `,
+    )
     .eq("template_id", project.template_id);
 
   // Merge loops and recordings in JS
-  const formattedScenes: Scene[] = ((rawScenes as unknown as RawScene[]) || []).map((scene: RawScene) => ({
+  const formattedScenes: Scene[] = (
+    (rawScenes as unknown as RawScene[]) || []
+  ).map((scene: RawScene) => ({
     id: scene.id,
     name: scene.name,
     sequence_number: scene.sequence_number,
     loops: (scene.template_loops || []).map((loop: RawTemplateLoop) => {
-      const rec = ((recordings as unknown as RawRecording[]) || []).find((r) => r.template_loop_id === loop.id);
+      const rec = ((recordings as unknown as RawRecording[]) || []).find(
+        (r) => r.template_loop_id === loop.id,
+      );
       return {
         id: loop.id,
         name: loop.name,
@@ -191,17 +212,25 @@ export default async function ProjectDetailsPage({ params }: PageProps) {
         key_terms: (loop.loop_key_terms || [])
           .map((lkt: RawLoopKeyTerm) => lkt.key_terms)
           .filter(Boolean) as unknown as KeyTerm[],
-        recording: rec ? {
-          id: rec.id,
-          recorded_audio_url: rec.recorded_audio_url,
-          status: rec.status,
-          translated_text: rec.translated_text,
-          recorded_by_user: rec.recorded_by_user,
-          created_at: rec.created_at,
-        } : null,
+        recording: rec
+          ? {
+              id: rec.id,
+              recorded_audio_url: rec.recorded_audio_url,
+              status: rec.status,
+              translated_text: rec.translated_text,
+              recorded_by_user: rec.recorded_by_user,
+              created_at: rec.created_at,
+            }
+          : null,
       };
     }),
   }));
 
-  return <ProjectClient project={project as unknown as Project} scenes={formattedScenes} isAdmin={isAdmin} />;
+  return (
+    <ProjectClient
+      project={project as unknown as Project}
+      scenes={formattedScenes}
+      isAdmin={isAdmin}
+    />
+  );
 }

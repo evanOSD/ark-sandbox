@@ -1,3 +1,5 @@
+// src/app/(dashboard)/projects/[projectId]/components/VideoPlayer.tsx
+
 import React, { useState, useEffect, useRef } from "react";
 import {
   Film,
@@ -10,6 +12,13 @@ import {
 } from "lucide-react"; // Menambahkan Minimize2
 import { cn } from "@/lib/utils";
 import { Project } from "../ProjectClient";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface VideoPlayerProps {
   project: Project;
@@ -227,10 +236,12 @@ export function VideoPlayer({
               Menjahit audio...
             </span>
           )}
-          <select
+
+          <Select
             value={activeAudioUrl}
-            onChange={(e) => {
-              const val = e.target.value;
+            onValueChange={(val) => {
+              if (!val) return;
+
               if (val === "PROJECT_AUDIO") {
                 setActiveAudioUrl(val);
               } else {
@@ -242,18 +253,32 @@ export function VideoPlayer({
                 }
               }
             }}
-            className="bg-background border border-border text-[10px] font-mono rounded px-2 py-1 text-muted-foreground focus:outline-none focus:border-border cursor-pointer"
           >
-            {audioSources.map((source) => (
-              <option key={source.name} value={source.url}>
-                {source.name.replace(/\.wav$/i, "")}
-              </option>
-            ))}
-            {audioSources.length === 0 && (
-              <option value="">default_audio</option>
-            )}
-            <option value="PROJECT_AUDIO">Audio Rekaman Saya (Scene)</option>
-          </select>
+            <SelectTrigger
+              size="sm"
+              className="text-[10px] font-mono rounded bg-background text-muted-foreground border-border cursor-pointer"
+            >
+              <SelectValue placeholder="Pilih Audio" />
+            </SelectTrigger>
+            <SelectContent align="end" className="text-[10px] font-mono">
+              {audioSources.map((source) => (
+                <SelectItem key={source.name} value={source.url}>
+                  {source.name.replace(/\.wav$/i, "")}
+                </SelectItem>
+              ))}
+
+              {/* FIX: Memasukkan properti audio_url dari Supabase sebagai value pengikat */}
+              {audioSources.length === 0 && (
+                <SelectItem value={project.templates?.audio_url || ""}>
+                  default_audio
+                </SelectItem>
+              )}
+
+              <SelectItem value="PROJECT_AUDIO">
+                Audio Rekaman Saya (Scene)
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="flex-1 h-1 bg-secondary rounded-full relative overflow-hidden">
