@@ -84,7 +84,7 @@ export interface Note {
 export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) {
   // State
   const [localScenes, setLocalScenes] = useState<Scene[]>(scenes);
-  const [activeTab, setActiveTab] = useState<"draft" | "keyTerms" | "transcribe" | "backTranslate" | "consult">("draft");
+  const [activeTab, setActiveTab] = useState<"draft" | "keyTerms" | "backTranslate" | "consult">("draft");
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
@@ -689,8 +689,8 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
                 <KeyTermsTab activeScene={activeScene} />
               )}
 
-              {["transcribe", "backTranslate", "consult"].includes(activeTab) && (
-                <PlaceholderTab activeTab={activeTab as "transcribe" | "backTranslate" | "consult"} />
+              {["backTranslate", "consult"].includes(activeTab) && (
+                <PlaceholderTab activeTab={activeTab as "backTranslate" | "consult"} />
               )}
 
             </div>

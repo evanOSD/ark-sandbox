@@ -1,5 +1,5 @@
 interface PlaceholderTabProps {
-  activeTab: "transcribe" | "backTranslate" | "consult";
+  activeTab: "backTranslate" | "consult";
 }
 
 export function PlaceholderTab({ activeTab }: PlaceholderTabProps) {

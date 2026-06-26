@@ -5,9 +5,9 @@ import {
   Play,
   Scissors,
   Square,
+  Trash,
   Trash2,
   Save,
-  Volume1,
   Volume2,
   VolumeX,
   X,
@@ -25,8 +25,8 @@ interface RecordingControlsProps {
   selectedRegion: Region | null;
   onTrim: () => void;
   onMuteSelection: () => void;
+  onDeleteSelection: () => void;
   onNormalize: () => void;
-  onNormalizeSelection: () => void;
   onClearSelection: () => void;
   onDiscardRecording: () => void;
 
@@ -54,8 +54,8 @@ export function RecordingControls({
   selectedRegion,
   onTrim,
   onMuteSelection,
+  onDeleteSelection,
   onNormalize,
-  onNormalizeSelection,
   onClearSelection,
   onDiscardRecording,
   isRecording,
@@ -85,7 +85,11 @@ export function RecordingControls({
           disabled={!recordedUrl}
           className="h-8 w-8 text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 hover:text-emerald-400 bg-background/40 disabled:opacity-50"
         >
-          {isRecPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+          {isRecPlaying ? (
+            <Pause className="w-4 h-4" />
+          ) : (
+            <Play className="w-4 h-4" />
+          )}
         </Button>
 
         <Button
@@ -128,24 +132,24 @@ export function RecordingControls({
           type="button"
           variant="outline"
           size="icon"
-          title="Normalize (-6dB)"
-          onClick={onNormalize}
-          disabled={!recordedUrl}
-          className="h-8 w-8 border-border text-foreground/90 hover:text-foreground hover:bg-muted bg-background/40 disabled:opacity-50"
+          title="Hapus Seleksi"
+          onClick={onDeleteSelection}
+          disabled={!selectedRegion || !recordedUrl}
+          className="h-8 w-8 text-rose-500 border-rose-950/40 hover:bg-rose-950/20 hover:text-rose-400 disabled:opacity-50"
         >
-          <Volume2 className="w-4 h-4" />
+          <Trash className="w-4 h-4" />
         </Button>
 
         <Button
           type="button"
           variant="outline"
           size="icon"
-          title="Normalize Seleksi (-6dB)"
-          onClick={onNormalizeSelection}
-          disabled={!selectedRegion || !recordedUrl}
+          title="Normalize (-6dB)"
+          onClick={onNormalize}
+          disabled={!recordedUrl}
           className="h-8 w-8 border-border text-foreground/90 hover:text-foreground hover:bg-muted bg-background/40 disabled:opacity-50"
         >
-          <Volume1 className="w-4 h-4" />
+          <Volume2 className="w-4 h-4" />
         </Button>
 
         {(recordedUrl || isRecording) && (

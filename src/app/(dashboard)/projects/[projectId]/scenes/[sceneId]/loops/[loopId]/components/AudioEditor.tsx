@@ -1,18 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import WaveSurfer from "wavesurfer.js";
-import RegionsPlugin, { Region } from "wavesurfer.js/dist/plugins/regions.js";
-import TimelinePlugin from "wavesurfer.js/dist/plugins/timeline.js";
-import RecordPlugin from "wavesurfer.js/dist/plugins/record.js";
-import HoverPlugin from "wavesurfer.js/dist/plugins/hover.js";
-import { BookOpen } from "lucide-react";
+import { useMemo, useEffect } from "react";
+import { BookOpen, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { WavRecorder } from "@/lib/wav-recorder";
-import { getCloudinaryConfig } from "@/app/(dashboard)/templates/actions";
-import { saveRecording } from "../../../../../loops/actions";
-import { saveLocalRecording, getLocalRecording, clearLocalRecording } from "@/lib/indexeddb";
 import { Project, Loop } from "../WorkspaceClient";
 import { AudioSourceTabs } from "./audio-editor/AudioSourceTabs";
 import { AudioSettingsPopover } from "./audio-editor/AudioSettingsPopover";
@@ -21,121 +11,9 @@ import { ReferenceWaveform } from "./audio-editor/ReferenceWaveform";
 import { RecordingWaveform } from "./audio-editor/RecordingWaveform";
 import { RecordingControls } from "./audio-editor/RecordingControls";
 import { UnsavedBanner } from "./audio-editor/UnsavedBanner";
-
-// Helper encoding PCM 24-bit 48kHz Mono WAV
-function encodeWav24Bit(samples: Float32Array, sampleRate: number): Blob {
-  const buffer = new ArrayBuffer(44 + samples.length * 3);
-  const view = new DataView(buffer);
-
-  const writeString = (view: DataView, offset: number, string: string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  };
-
-  /* RIFF identifier */
-  writeString(view, 0, "RIFF");
-  /* file length */
-  view.setUint32(4, 36 + samples.length * 3, true);
-  /* RIFF type */
-  writeString(view, 8, "WAVE");
-  /* format chunk identifier */
-  writeString(view, 12, "fmt ");
-  /* format chunk length */
-  view.setUint32(16, 16, true);
-  /* sample format (raw PCM = 1) */
-  view.setUint16(20, 1, true);
-  /* channel count (mono = 1) */
-  view.setUint16(22, 1, true);
-  /* sample rate */
-  view.setUint32(24, sampleRate, true);
-  /* byte rate (sample rate * block align) */
-  view.setUint32(28, sampleRate * 3, true);
-  /* block align (channel count * bytes per sample) */
-  view.setUint16(32, 3, true);
-  /* bits per sample (24 bits) */
-  view.setUint16(34, 24, true);
-  /* data chunk identifier */
-  writeString(view, 36, "data");
-  /* data chunk length */
-  view.setUint32(40, samples.length * 3, true);
-
-  // Write PCM audio samples
-  let index = 44;
-  for (let i = 0; i < samples.length; i++) {
-    // Clamp value
-    let s = Math.max(-1, Math.min(1, samples[i]));
-    // Konversi Float32 (-1.0 s/d 1.0) menjadi Int24 (-8388608 s/d 8388607)
-    s = s < 0 ? s * 0x800000 : s * 0x7FFFFF;
-    s = Math.round(s);
-    // Tulis 3 bytes (Little Endian)
-    view.setUint8(index, s & 0xff);
-    view.setUint8(index + 1, (s >> 8) & 0xff);
-    view.setUint8(index + 2, (s >> 16) & 0xff);
-    index += 3;
-  }
-
-  return new Blob([view], { type: "audio/wav" });
-}
-
-// Helper to create a silent WAV Blob of specific duration
-function createSilentWavBlob(durationSeconds: number, sampleRate: number = 48000): Blob {
-  const numSamples = Math.floor(durationSeconds * sampleRate);
-  const floatData = new Float32Array(numSamples);
-  return encodeWav24Bit(floatData, sampleRate);
-}
-
-// Function to load, slice, and set reference audio on Wavesurfer to loop segment boundaries
-async function loadAndSliceReferenceAudio(
-  url: string,
-  startMs: number,
-  endMs: number,
-  ws: WaveSurfer
-) {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Gagal mengambil file audio referensi.");
-    
-    const arrayBuffer = await response.arrayBuffer();
-    const AudioContextClass = window.AudioContext || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    const audioCtx = new AudioContextClass({ sampleRate: 48000 });
-    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-
-    const sampleRate = audioBuffer.sampleRate;
-    const startSample = Math.floor((startMs / 1000) * sampleRate);
-    const endSample = Math.floor((endMs / 1000) * sampleRate);
-    
-    // Ensure boundaries are valid
-    const safeStart = Math.max(0, Math.min(startSample, audioBuffer.length));
-    const safeEnd = Math.max(safeStart, Math.min(endSample, audioBuffer.length));
-    const durationSamples = safeEnd - safeStart;
-
-    if (durationSamples <= 0) {
-      throw new Error("Durasi segmen audio referensi tidak valid.");
-    }
-
-    // Extract mono data (channel 0)
-    const channelData = audioBuffer.getChannelData(0);
-    const slicedFloatData = new Float32Array(durationSamples);
-    slicedFloatData.set(channelData.subarray(safeStart, safeEnd));
-
-    // Encode slicedFloatData into a WAV Blob
-    const wavBlob = encodeWav24Bit(slicedFloatData, sampleRate);
-    const blobUrl = URL.createObjectURL(wavBlob);
-
-    // Load trimmed audio into Wavesurfer
-    await ws.load(blobUrl);
-    
-    // Close audioContext to release resources
-    await audioCtx.close();
-  } catch (err) {
-    console.error("Gagal melakukan slice audio referensi:", err);
-    // Fallback to loading the original url if slice fails
-    ws.load(url).catch((loadErr) => {
-      if (loadErr.name !== "AbortError") console.error(loadErr);
-    });
-  }
-}
+import { useAudioSettings } from "@/hooks/useAudioSettings";
+import { useCloudinaryUpload } from "@/hooks/useCloudinaryUpload";
+import { useAudioEditorState } from "@/hooks/useAudioEditorState";
 
 interface AudioEditorProps {
   project: Project;
@@ -143,6 +21,15 @@ interface AudioEditorProps {
   existingRecordingUrl: string | null;
   isKeyTermsOpen: boolean;
   onToggleKeyTerms: () => void;
+  isLogsOpen: boolean;
+  onToggleLogs: () => void;
+  onRefAudioStatusChange?: (
+    loaded: boolean,
+    sliced: boolean,
+    hasUnsaved: boolean,
+    recordedUrl: string | null
+  ) => void;
+  onUploadStatusChange?: (step: string) => void;
 }
 
 export default function AudioEditor({
@@ -151,688 +38,80 @@ export default function AudioEditor({
   existingRecordingUrl,
   isKeyTermsOpen,
   onToggleKeyTerms,
+  isLogsOpen,
+  onToggleLogs,
+  onRefAudioStatusChange,
+  onUploadStatusChange,
 }: AudioEditorProps) {
-  const router = useRouter();
+  // ── Hooks ──────────────────────────────────────────────────────────────────
+  const audioSettings = useAudioSettings();
 
-  // DOM container refs
-  const refContainerRef = useRef<HTMLDivElement | null>(null);
-  const recContainerRef = useRef<HTMLDivElement | null>(null);
-
-  // WaveSurfer instances
-  const refWavesurfer = useRef<WaveSurfer | null>(null);
-  const recWavesurfer = useRef<WaveSurfer | null>(null);
-  const recRegionsPlugin = useRef<RegionsPlugin | null>(null);
-  const recordPluginRef = useRef<RecordPlugin | null>(null);
-
-  // State audio reference sources
-  const audioSources = useMemo(() => project.templates.audio_sources || [], [project.templates.audio_sources]);
-  const [activeTabIdx, setActiveTabIdx] = useState(0);
-
-  // Playing states
-  const [isRefPlaying, setIsRefPlaying] = useState(false);
-  const [isRecPlaying, setIsRecPlaying] = useState(false);
-
-  // User Recording States
-  const [isRecording, setIsRecording] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
-  const [recordedUrl, setRecordedUrl] = useState<string | null>(existingRecordingUrl);
-  const [recorderInstance, setRecorderInstance] = useState<WavRecorder | null>(null);
-  const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
-  const [recCursorTime, setRecCursorTime] = useState(0);
-  const [recordedDuration, setRecordedDuration] = useState(0);
-
-  // Phase 2: Auto-trim Refs & States
-  const recorderRef = useRef<WavRecorder | null>(null);
-  const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [recordingTimeMs, setRecordingTimeMs] = useState(0);
-  const punchInTimeMsRef = useRef(0);
-  const stopRecordingRef = useRef<() => void>(() => {});
-
-  // UI state & loaders
-  const [isUploading, setIsUploading] = useState(false);
-  
-  // Microphone hardware DSP settings
-  const [noiseSuppression, setNoiseSuppression] = useState(false);
-  const [autoGainControl, setAutoGainControl] = useState(false);
-  const [echoCancellation, setEchoCancellation] = useState(false);
-
-  // Load preferences from localStorage on mount
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedNS = localStorage.getItem("ark_noise_suppression");
-      const storedAGC = localStorage.getItem("ark_auto_gain_control");
-      const storedEC = localStorage.getItem("ark_echo_cancellation");
-      
-      // Defer state updates to avoid React compiler/linter warnings
-      const timer = setTimeout(() => {
-        if (storedNS !== null) setNoiseSuppression(storedNS === "true");
-        if (storedAGC !== null) setAutoGainControl(storedAGC === "true");
-        if (storedEC !== null) setEchoCancellation(storedEC === "true");
-      }, 0);
-
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-  const toggleNoiseSuppression = () => {
-    const nextVal = !noiseSuppression;
-    setNoiseSuppression(nextVal);
-    localStorage.setItem("ark_noise_suppression", String(nextVal));
-  };
-  const toggleAutoGainControl = () => {
-    const nextVal = !autoGainControl;
-    setAutoGainControl(nextVal);
-    localStorage.setItem("ark_auto_gain_control", String(nextVal));
-  };
-  const toggleEchoCancellation = () => {
-    const nextVal = !echoCancellation;
-    setEchoCancellation(nextVal);
-    localStorage.setItem("ark_echo_cancellation", String(nextVal));
-  };
-
-  // Load temp recording from IndexedDB on mount
-  useEffect(() => {
-    async function loadTempRecording() {
-      const tempBlob = await getLocalRecording(project.id, loop.id);
-      if (tempBlob) {
-        setRecordedBlob(tempBlob);
-        const url = URL.createObjectURL(tempBlob);
-        setRecordedUrl(url);
-      }
-    }
-    loadTempRecording();
-  }, [project.id, loop.id]);
-
-  // Initializing Reference Wavesurfer
-  useEffect(() => {
-    if (!refContainerRef.current) return;
-
-    const bottomTimeline = TimelinePlugin.create({
-      height: 14,
-      timeInterval: 0.2,
-      primaryLabelInterval: 1,
-      style: {
-        fontSize: "10px",
-        color: "#6b7280",
-      },
-    });
-
-    const hoverRef = HoverPlugin.create({
-      lineColor: 'rgba(99, 102, 241, 0.5)',
-      lineWidth: 2,
-      labelBackground: 'rgba(0, 0, 0, 0.75)',
-      labelColor: '#fff',
-      labelSize: '10px',
-      formatTimeCallback: (time: number) => time.toFixed(2) + "s",
-    });
-
-    const ws = WaveSurfer.create({
-      container: refContainerRef.current,
-      waveColor: "rgba(99, 102, 241, 0.4)", // Indigo light HSL
-      progressColor: "rgb(99, 102, 241)", // Indigo dark HSL
-      height: 80,
-      cursorColor: "#6366f1", // Visible Indigo cursor/playhead needle
-      interact: true,
-      sampleRate: 48000,
-      plugins: [bottomTimeline, hoverRef],
-    });
-
-    refWavesurfer.current = ws;
-
-    ws.on("play", () => setIsRefPlaying(true));
-    ws.on("pause", () => setIsRefPlaying(false));
-
-    // Load active source, slicing it to match loop start/end times
-    const targetUrl = audioSources.length > 0 
-      ? audioSources[activeTabIdx].url 
-      : project.templates.audio_url;
-
-    if (targetUrl) {
-      loadAndSliceReferenceAudio(targetUrl, loop.start_time_ms, loop.end_time_ms, ws);
-    }
-
-    return () => {
-      ws.destroy();
-    };
-  }, [activeTabIdx, audioSources, project.templates.audio_url, loop.start_time_ms, loop.end_time_ms]);
-
-  // Initializing User Recording Wavesurfer (Mounted Once)
-  useEffect(() => {
-    if (!recContainerRef.current) return;
-
-    const bottomTimelineRec = TimelinePlugin.create({
-      height: 14,
-      timeInterval: 0.2,
-      primaryLabelInterval: 1,
-      style: {
-        fontSize: "10px",
-        color: "#6b7280",
-      },
-    });
-
-    const maxDurationS = Math.max(0.1, (loop.end_time_ms - loop.start_time_ms) / 1000);
-
-    const record = RecordPlugin.create({
-      scrollingWaveform: false, // Use fixed timeline instead of scrolling
-      renderRecordedAudio: false, // We load the true 24-bit WAV manually instead
-    });
-    recordPluginRef.current = record;
-
-    const hoverRec = HoverPlugin.create({
-      lineColor: 'rgba(16, 185, 129, 0.5)',
-      lineWidth: 2,
-      labelBackground: 'rgba(0, 0, 0, 0.75)',
-      labelColor: '#fff',
-      labelSize: '10px',
-      formatTimeCallback: (time: number) => time.toFixed(2) + "s",
-    });
-
-    const ws = WaveSurfer.create({
-      container: recContainerRef.current,
-      waveColor: "rgba(16, 185, 129, 0.4)", // Emerald HSL light
-      progressColor: "rgb(16, 185, 129)", // Emerald HSL dark
-      height: 90,
-      cursorColor: "#10b981",
-      interact: true,
-      sampleRate: 48000,
-      minPxPerSec: 0, // Force fit to container
-      plugins: [bottomTimelineRec, record, hoverRec],
-      duration: maxDurationS, // Force silent buffer timeline before recording
-    });
-
-    recWavesurfer.current = ws;
-
-    // Register Regions Plugin
-    const regions = ws.registerPlugin(RegionsPlugin.create());
-    recRegionsPlugin.current = regions;
-
-    regions.enableDragSelection({
-      color: "rgba(16, 185, 129, 0.15)",
-    });
-
-    regions.on("region-created", (region: Region) => {
-      // Keep only one region active
-      const allRegions = regions.getRegions();
-      allRegions.forEach((r: Region) => {
-        if (r.id !== region.id) r.remove();
-      });
-      setSelectedRegion(region);
-    });
-
-    regions.on("region-updated", (region: Region) => {
-      setSelectedRegion(region);
-    });
-
-    regions.on("region-removed", () => {
-      setSelectedRegion(null);
-    });
-
-    ws.on("play", () => setIsRecPlaying(true));
-    ws.on("pause", () => setIsRecPlaying(false));
-    ws.on("timeupdate", (currentTime: unknown) => setRecCursorTime(Number(currentTime)));
-    ws.on("seeking", (currentTime: unknown) => setRecCursorTime(Number(currentTime)));
-    ws.on("decode", (duration) => setRecordedDuration(duration));
-
-    // Listen to recording progress for auto-stop
-    record.on("record-progress", (timeMs: number) => {
-      const totalMs = punchInTimeMsRef.current + timeMs;
-      setRecordingTimeMs(totalMs);
-
-      const maxDurMs = loop.end_time_ms - loop.start_time_ms;
-      if (maxDurMs > 0 && totalMs >= maxDurMs) {
-        stopRecordingRef.current();
-      }
-    });
-
-    return () => {
-      ws.destroy();
-    };
-  }, [loop.start_time_ms, loop.end_time_ms]);
-
-  // Load recorded URL when it changes
-  useEffect(() => {
-    if (recWavesurfer.current && recordedUrl && !isRecording) {
-      recWavesurfer.current.load(recordedUrl).catch((err) => {
-        if (err.name !== "AbortError") console.error(err);
-      });
-    } else if (recWavesurfer.current && !recordedUrl && !isRecording) {
-      // Instead of completely emptying, we load a pure silence audio buffer
-      // This preserves the timeline, click-to-seek, and acts exactly like an empty canvas
-      const maxDurS = Math.max(0.1, (loop.end_time_ms - loop.start_time_ms) / 1000);
-      const silentBlob = createSilentWavBlob(maxDurS);
-      const silentUrl = URL.createObjectURL(silentBlob);
-      recWavesurfer.current.load(silentUrl).catch((err) => {
-        if (err.name !== "AbortError") console.error(err);
-      });
-    }
-  }, [recordedUrl, isRecording, loop.end_time_ms, loop.start_time_ms]);
-
-  // Handle Tab Switch for Reference
-  const handleTabChange = (idx: number) => {
-    setActiveTabIdx(idx);
-    if (refWavesurfer.current) {
-      loadAndSliceReferenceAudio(audioSources[idx].url, loop.start_time_ms, loop.end_time_ms, refWavesurfer.current);
-    }
-  };
-
-  // Toggle Reference Audio
-  const toggleRefPlay = () => {
-    if (!refWavesurfer.current) return;
-    if (isRefPlaying) {
-      refWavesurfer.current.pause();
-    } else {
-      refWavesurfer.current.play();
-    }
-  };
-
-  const stopRefPlay = () => {
-    if (!refWavesurfer.current) return;
-    refWavesurfer.current.stop();
-  };
-
-  const toggleRecPlay = () => {
-    if (!recWavesurfer.current) return;
-    if (isRecPlaying) {
-      recWavesurfer.current.pause();
-    } else {
-      recWavesurfer.current.play();
-    }
-  };
-
-  const stopRecPlay = () => {
-    if (!recWavesurfer.current) return;
-    recWavesurfer.current.stop();
-  };
-
-  // Stop Voice Recording
-  const stopRecording = async () => {
-    if (recordingTimeoutRef.current) {
-      clearTimeout(recordingTimeoutRef.current);
-      recordingTimeoutRef.current = null;
-    }
-
-    if (recordPluginRef.current?.isRecording()) {
-      recordPluginRef.current.stopRecording();
-    }
-
-    const recorder = recorderRef.current || recorderInstance;
-    if (!recorder) return;
-    
-    const blob = recorder.stop(); // 24-bit 48kHz mono padded automatically
-    setRecordedBlob(blob);
-
-    const url = URL.createObjectURL(blob);
-    setRecordedUrl(url);
-    setIsRecording(false);
-    setIsPaused(false);
-    setRecorderInstance(null);
-    recorderRef.current = null;
-
-    // RecordPlugin sets interact=false during startMic() but never restores it
-    // when renderRecordedAudio is false. Re-enable so user can click-to-seek.
-    if (recWavesurfer.current) {
-      recWavesurfer.current.setOptions({ interact: true });
-    }
-
-    await saveLocalRecording(project.id, loop.id, blob);
-  };
-
-  useEffect(() => {
-    stopRecordingRef.current = stopRecording;
+  const { isUploading, uploadStep, handleUploadRecording } = useCloudinaryUpload({
+    projectId: project.id,
+    loopId: loop.id,
   });
 
-  const pauseRecording = () => {
-    if (recordPluginRef.current?.isRecording()) {
-      recordPluginRef.current.pauseRecording();
-    }
-    const recorder = recorderRef.current || recorderInstance;
-    if (recorder) {
-      recorder.pause();
-    }
-    setIsPaused(true);
-  };
+  const editor = useAudioEditorState({
+    projectId: project.id,
+    loopId: loop.id,
+    loopBoundary: {
+      start_time_ms: loop.start_time_ms,
+      end_time_ms: loop.end_time_ms,
+    },
+    projectTemplate: {
+      audio_url: project.templates.audio_url,
+      audio_sources: project.templates.audio_sources ?? undefined,
+    },
+    existingRecordingUrl,
+    audioSettings,
+  });
 
-  const resumeRecording = () => {
-    if (recordPluginRef.current?.isPaused()) {
-      recordPluginRef.current.resumeRecording();
-    }
-    const recorder = recorderRef.current || recorderInstance;
-    if (recorder) {
-      recorder.resume();
-    }
-    setIsPaused(false);
-  };
+  useEffect(() => {
+    onRefAudioStatusChange?.(
+      editor.isRefAudioLoaded,
+      editor.isRefAudioSliced,
+      editor.recordedBlob !== null,
+      editor.recordedUrl
+    );
+  }, [
+    editor.isRefAudioLoaded,
+    editor.isRefAudioSliced,
+    editor.recordedBlob,
+    editor.recordedUrl,
+    onRefAudioStatusChange,
+  ]);
 
-  // Start Voice Recording
-  const startRecording = async () => {
-    try {
-      if (!recordPluginRef.current) return;
+  useEffect(() => {
+    onUploadStatusChange?.(uploadStep);
+  }, [uploadStep, onUploadStatusChange]);
 
-      // 1. Get media stream via RecordPlugin
-      const stream = await recordPluginRef.current.startMic({
-        echoCancellation,
-        noiseSuppression,
-        autoGainControl,
-      });
+  // ── Derived values ─────────────────────────────────────────────────────────
+  const isUnsavedLocal = editor.recordedBlob !== null;
+  const loopDurationMs = loop.end_time_ms - loop.start_time_ms;
 
-      // Extract existing audio buffer and playhead position for Punch-in Recording
-      let initialBuffer: Float32Array | undefined;
-      let startTimeSeconds = 0;
-      
-      if (recWavesurfer.current) {
-        const decodedData = recWavesurfer.current.getDecodedData();
-        if (decodedData) {
-          initialBuffer = decodedData.getChannelData(0);
-        }
-        startTimeSeconds = recWavesurfer.current.getCurrentTime() || 0;
-      }
-      punchInTimeMsRef.current = startTimeSeconds * 1000;
-      
-      const maxDurationS = Math.max(0.1, (loop.end_time_ms - loop.start_time_ms) / 1000);
-
-      // 2. Start true 24-bit PCM recorder using the SAME stream
-      const recorder = new WavRecorder();
-      await recorder.start({
-        echoCancellation,
-        noiseSuppression,
-        autoGainControl,
-        stream, // Re-use the existing stream to keep them synced
-        initialBuffer,
-        startTimeSeconds,
-        maxDurationSeconds: maxDurationS,
-      });
-      recorderRef.current = recorder;
-      setRecorderInstance(recorder);
-
-      // 3. Start RecordPlugin rendering
-      await recordPluginRef.current.startRecording();
-
-      setIsRecording(true);
-      setIsPaused(false);
-      setSelectedRegion(null);
-
-      // Stop any playing audio
-      if (refWavesurfer.current) refWavesurfer.current.pause();
-      if (recWavesurfer.current) recWavesurfer.current.pause();
-
-    } catch (err) {
-      alert("Gagal mengakses mikrofon: " + (err instanceof Error ? err.message : err));
-    }
-  };
-
-  // Trim Audio (Keep selected region)
-  const handleTrim = async () => {
-    if (!recWavesurfer.current || !selectedRegion) return;
-    const buffer = recWavesurfer.current.getDecodedData();
-    if (!buffer) return;
-
-    const sampleRate = buffer.sampleRate;
-    const startIndex = Math.floor(selectedRegion.start * sampleRate);
-    const endIndex = Math.floor(selectedRegion.end * sampleRate);
-    const channelData = buffer.getChannelData(0);
-    // Keep exact same length, just mute everything outside selection
-    const trimmedData = new Float32Array(channelData.length);
-    trimmedData.set(channelData.subarray(startIndex, endIndex), startIndex);
-
-    const wavBlob = encodeWav24Bit(trimmedData, sampleRate);
-    setRecordedBlob(wavBlob);
-
-    // Clear regions and reload waveform
-    if (recRegionsPlugin.current) {
-      recRegionsPlugin.current.clearRegions();
-    }
-    setSelectedRegion(null);
-
-    const url = URL.createObjectURL(wavBlob);
-    setRecordedUrl(url);
-
-    // Save to IndexedDB local cache
-    await saveLocalRecording(project.id, loop.id, wavBlob);
-  };
-
-  // Mute / Silent Audio Selection (Erase Audio without removing time)
-  const handleMuteSelection = async () => {
-    if (!recWavesurfer.current || !selectedRegion) return;
-    const buffer = recWavesurfer.current.getDecodedData();
-    if (!buffer) return;
-
-    const sampleRate = buffer.sampleRate;
-    const startIndex = Math.floor(selectedRegion.start * sampleRate);
-    const endIndex = Math.floor(selectedRegion.end * sampleRate);
-
-    const channelData = buffer.getChannelData(0);
-    // Keep exact same length, just mute the selected region
-    const stitchedData = new Float32Array(channelData);
-    for (let i = startIndex; i < endIndex; i++) {
-      stitchedData[i] = 0;
-    }
-
-    const wavBlob = encodeWav24Bit(stitchedData, sampleRate);
-    setRecordedBlob(wavBlob);
-
-    // Clear regions and reload waveform
-    if (recRegionsPlugin.current) {
-      recRegionsPlugin.current.clearRegions();
-    }
-    setSelectedRegion(null);
-
-    const url = URL.createObjectURL(wavBlob);
-    setRecordedUrl(url);
-
-    // Save to IndexedDB local cache
-    await saveLocalRecording(project.id, loop.id, wavBlob);
-  };
-
-  // Clear Selection
-  const handleClearSelection = () => {
-    if (recRegionsPlugin.current) {
-      recRegionsPlugin.current.clearRegions();
-    }
-    setSelectedRegion(null);
-  };
-
-  // Normalize Audio to -6dB
-  const handleNormalize = async () => {
-    if (!recWavesurfer.current || !recordedUrl) return;
-    const buffer = recWavesurfer.current.getDecodedData();
-    if (!buffer) return;
-
-    const sampleRate = buffer.sampleRate;
-    const channelData = buffer.getChannelData(0);
-    
-    // 1. Find Max Peak
-    let maxPeak = 0;
-    for (let i = 0; i < channelData.length; i++) {
-      const absVal = Math.abs(channelData[i]);
-      if (absVal > maxPeak) maxPeak = absVal;
-    }
-
-    if (maxPeak === 0) return; // Silent audio, skip
-    
-    // 2. Calculate Multiplier for -6dB
-    const targetPeak = Math.pow(10, -6 / 20); // ~0.501187
-    const multiplier = targetPeak / maxPeak;
-
-    // 3. Apply Multiplier
-    const normalizedData = new Float32Array(channelData.length);
-    for (let i = 0; i < channelData.length; i++) {
-      normalizedData[i] = channelData[i] * multiplier;
-    }
-
-    // 4. Save and Update
-    const wavBlob = encodeWav24Bit(normalizedData, sampleRate);
-    setRecordedBlob(wavBlob);
-
-    if (recRegionsPlugin.current) {
-      recRegionsPlugin.current.clearRegions();
-    }
-    setSelectedRegion(null);
-
-    const url = URL.createObjectURL(wavBlob);
-    setRecordedUrl(url);
-
-    await saveLocalRecording(project.id, loop.id, wavBlob);
-  };
-
-  // Normalize Selection Audio to -6dB
-  const handleNormalizeSelection = async () => {
-    if (!recWavesurfer.current || !recordedUrl || !selectedRegion) return;
-    const buffer = recWavesurfer.current.getDecodedData();
-    if (!buffer) return;
-
-    const sampleRate = buffer.sampleRate;
-    const channelData = buffer.getChannelData(0);
-    const startIndex = Math.floor(selectedRegion.start * sampleRate);
-    const endIndex = Math.floor(selectedRegion.end * sampleRate);
-    
-    // 1. Find Max Peak in the selected region
-    let maxPeak = 0;
-    for (let i = startIndex; i < endIndex; i++) {
-      const absVal = Math.abs(channelData[i]);
-      if (absVal > maxPeak) maxPeak = absVal;
-    }
-
-    if (maxPeak === 0) return; // Silent audio, skip
-    
-    // 2. Calculate Multiplier for -6dB
-    const targetPeak = Math.pow(10, -6 / 20); // ~0.501187
-    const multiplier = targetPeak / maxPeak;
-
-    // 3. Apply Multiplier ONLY to the selected region
-    const normalizedData = new Float32Array(channelData);
-    for (let i = startIndex; i < endIndex; i++) {
-      normalizedData[i] *= multiplier;
-    }
-
-    // 4. Save and Update
-    const wavBlob = encodeWav24Bit(normalizedData, sampleRate);
-    setRecordedBlob(wavBlob);
-
-    if (recRegionsPlugin.current) {
-      recRegionsPlugin.current.clearRegions();
-    }
-    setSelectedRegion(null);
-
-    const url = URL.createObjectURL(wavBlob);
-    setRecordedUrl(url);
-
-    await saveLocalRecording(project.id, loop.id, wavBlob);
-  };
-
-  // Discard Recording (Hapus Semua Rekaman)
-  const handleDiscardRecording = async () => {
-    if (!confirm("Hapus semua rekaman ini?")) return;
-
-    if (recordPluginRef.current?.isRecording()) {
-      recordPluginRef.current.stopRecording();
-    }
-    
-    if (recWavesurfer.current) {
-      recWavesurfer.current.empty();
-    }
-    
-    setRecordedBlob(null);
-    setRecordedUrl(null);
-    setIsRecording(false);
-    setIsPaused(false);
-    setRecCursorTime(0);
-    setRecordingTimeMs(0);
-    
-    // Clear regions
-    if (recRegionsPlugin.current) {
-      recRegionsPlugin.current.clearRegions();
-    }
-    setSelectedRegion(null);
-
-    await clearLocalRecording(project.id, loop.id);
-  };
-
-  // Submit and Upload to Cloudinary
-  const handleUploadRecording = async () => {
-    if (!recordedBlob) return;
-    setIsUploading(true);
-    try {
-      // 1. Dapatkan Cloudinary Config
-      const config = await getCloudinaryConfig();
-      if (!config.cloudName || !config.apiKey) {
-        throw new Error("Cloudinary API credentials are not configured on the server!");
-      }
-
-      // 2. Minta Signature
-      const timestamp = Math.round(new Date().getTime() / 1000);
-      const uploadPreset = config.uploadPreset;
-      const paramsToSign = {
-        timestamp,
-        upload_preset: uploadPreset,
-      };
-
-      const signatureRes = await fetch("/api/cloudinary-signature", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paramsToSign }),
-      });
-
-      const signatureData = await signatureRes.json();
-      if (signatureData.error) {
-        throw new Error("Gagal memperoleh tanda tangan Cloudinary: " + signatureData.error);
-      }
-
-      // 3. Upload direct ke Cloudinary dari browser
-      const formData = new FormData();
-      formData.append("file", recordedBlob, "recording.wav");
-      formData.append("api_key", config.apiKey);
-      formData.append("timestamp", String(timestamp));
-      formData.append("upload_preset", uploadPreset);
-      formData.append("signature", signatureData.signature);
-
-      const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${config.cloudName}/video/upload`, {
-        method: "POST",
-        body: formData,
-      });
-
-      const uploadData = await uploadRes.json();
-      if (uploadData.error) {
-        throw new Error("Cloudinary Upload Error: " + uploadData.error.message);
-      }
-
-      const secureUrl = uploadData.secure_url;
-
-      // 4. Hubungkan ke database dengan menyimpan URL rekaman
-      const recordFormData = new FormData();
-      recordFormData.append("audio_url", secureUrl);
-      await saveRecording(project.id, loop.id, recordFormData);
-
-      // 5. Hapus cache IndexedDB
-      await clearLocalRecording(project.id, loop.id);
-
-      alert("Rekaman berhasil diunggah! Anda akan dialihkan kembali ke halaman proyek.");
-      router.push(`/projects/${project.id}`);
-    } catch (err) {
-      alert("Gagal mengunggah rekaman: " + (err instanceof Error ? err.message : err));
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-
-
-  const isUnsavedLocal = recordedBlob !== null;
-  const currentScriptText = audioSources[activeTabIdx]?.script_text || "";
+  const audioSources = useMemo(
+    () => project.templates.audio_sources || [],
+    [project.templates.audio_sources],
+  );
+  const currentScriptText =
+    audioSources[editor.activeTabIdx]?.script_text || "";
 
   return (
     <div className="w-full h-full bg-background flex flex-col relative overflow-hidden text-foreground">
-      {isRecording && (
+      {editor.isRecording && (
         <div className="absolute inset-0 bg-red-500/5 border border-red-500/10 animate-pulse pointer-events-none z-10" />
       )}
 
       {/* ── Top bar: source tabs + action buttons ── */}
       <div className="border-b border-border p-2 flex flex-row items-center justify-between shrink-0 bg-muted/10">
         <AudioSourceTabs
-          audioSources={audioSources}
-          activeTabIdx={activeTabIdx}
-          onTabChange={handleTabChange}
+          audioSources={editor.audioSources}
+          activeTabIdx={editor.activeTabIdx}
+          onTabChange={editor.handleTabChange}
         />
+
+        {isUnsavedLocal && <UnsavedBanner />}
+
         <div className="flex items-center gap-2">
           <Button
             variant={isKeyTermsOpen ? "default" : "outline"}
@@ -852,14 +131,31 @@ export default function AudioEditor({
             Kamus Kata Kunci
           </Button>
           <AudioSettingsPopover
-            isRecording={isRecording}
-            noiseSuppression={noiseSuppression}
-            autoGainControl={autoGainControl}
-            echoCancellation={echoCancellation}
-            onToggleNoiseSuppression={toggleNoiseSuppression}
-            onToggleAutoGainControl={toggleAutoGainControl}
-            onToggleEchoCancellation={toggleEchoCancellation}
+            isRecording={editor.isRecording}
+            noiseSuppression={audioSettings.noiseSuppression}
+            autoGainControl={audioSettings.autoGainControl}
+            echoCancellation={audioSettings.echoCancellation}
+            onToggleNoiseSuppression={audioSettings.toggleNoiseSuppression}
+            onToggleAutoGainControl={audioSettings.toggleAutoGainControl}
+            onToggleEchoCancellation={audioSettings.toggleEchoCancellation}
           />
+          <Button
+            variant={isLogsOpen ? "default" : "outline"}
+            size="sm"
+            onClick={onToggleLogs}
+            className={`w-fit cursor-pointer h-8 text-xs font-semibold m-0 transition-colors ${
+              isLogsOpen
+                ? "bg-indigo-600 hover:bg-indigo-700 text-white border-transparent"
+                : "text-foreground"
+            }`}
+          >
+            <FileText
+              className={`w-3.5 h-3.5 mr-1.5 ${
+                isLogsOpen ? "text-white" : "text-indigo-500"
+              }`}
+            />{" "}
+            Logs
+          </Button>
         </div>
       </div>
 
@@ -869,58 +165,59 @@ export default function AudioEditor({
           {/* Script + reference audio controls */}
           <ScriptDisplay
             scriptText={currentScriptText}
-            sourceName={audioSources[activeTabIdx]?.name || "Default"}
-            isRefPlaying={isRefPlaying}
-            onToggleRefPlay={toggleRefPlay}
-            onStopRefPlay={stopRefPlay}
+            sourceName={audioSources[editor.activeTabIdx]?.name || "Default"}
           />
 
           {/* Waveforms */}
           <div className="space-y-2">
             <ReferenceWaveform
-              containerRef={refContainerRef}
-              durationMs={loop.end_time_ms - loop.start_time_ms}
+              containerRef={editor.refContainerRef}
+              durationMs={loopDurationMs}
+              isRefPlaying={editor.isRefPlaying}
+              onToggleRefPlay={editor.toggleRefPlay}
+              onStopRefPlay={editor.stopRefPlay}
             />
+            <div className="border-t border-border mx-4" />
             <RecordingWaveform
-              containerRef={recContainerRef}
-              isRecording={isRecording}
-              recordingTimeMs={recordingTimeMs}
-              recCursorTime={recCursorTime}
-              loopDurationMs={loop.end_time_ms - loop.start_time_ms}
+              containerRef={editor.recContainerRef}
+              isRecording={editor.isRecording}
+              recordingTimeMs={editor.recordingTimeMs}
+              recCursorTime={editor.recCursorTime}
+              loopDurationMs={loopDurationMs}
             />
 
             {/* Edit + record controls */}
             <RecordingControls
-              recordedUrl={recordedUrl}
-              isRecPlaying={isRecPlaying}
-              onToggleRecPlay={toggleRecPlay}
-              onStopRecPlay={stopRecPlay}
-              selectedRegion={selectedRegion}
-              onTrim={handleTrim}
-              onMuteSelection={handleMuteSelection}
-              onNormalize={handleNormalize}
-              onNormalizeSelection={handleNormalizeSelection}
-              onClearSelection={handleClearSelection}
-              onDiscardRecording={handleDiscardRecording}
-              isRecording={isRecording}
-              isPaused={isPaused}
-              recordingTimeMs={recordingTimeMs}
-              loopDurationMs={loop.end_time_ms - loop.start_time_ms}
+              recordedUrl={editor.recordedUrl}
+              isRecPlaying={editor.isRecPlaying}
+              onToggleRecPlay={editor.toggleRecPlay}
+              onStopRecPlay={editor.stopRecPlay}
+              selectedRegion={editor.selectedRegion}
+              onTrim={editor.handleTrim}
+              onMuteSelection={editor.handleMuteSelection}
+              onDeleteSelection={editor.handleDeleteSelection}
+              onNormalize={editor.handleNormalize}
+              onClearSelection={editor.handleClearSelection}
+              onDiscardRecording={editor.handleDiscardRecording}
+              isRecording={editor.isRecording}
+              isPaused={editor.isPaused}
+              recordingTimeMs={editor.recordingProgressTimeMs}
+              loopDurationMs={editor.activeLoopDurationMs}
               isUploading={isUploading}
-              recordedDuration={recordedDuration}
-              onStartRecording={startRecording}
-              onPauseRecording={pauseRecording}
-              onResumeRecording={resumeRecording}
-              onStopRecording={stopRecording}
-              onUploadRecording={handleUploadRecording}
+              recordedDuration={editor.recordedDuration}
+              onStartRecording={editor.startRecording}
+              onPauseRecording={editor.pauseRecording}
+              onResumeRecording={editor.resumeRecording}
+              onStopRecording={editor.stopRecording}
+              onUploadRecording={() =>
+                handleUploadRecording(editor.recordedBlob)
+              }
             />
           </div>
         </div>
 
         {/* Footer area */}
-        <div className="p-5 space-y-2 flex-1 overflow-y-auto">
-          {isUnsavedLocal && <UnsavedBanner />}
-        </div>
+        <div className="p-5 space-y-2 flex-1 overflow-y-auto"></div>
       </div>
     </div>
   );

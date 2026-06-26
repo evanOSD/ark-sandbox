@@ -1,18 +1,17 @@
 import { cn } from "@/lib/utils";
 
 interface WorkspaceTabsProps {
-  activeTab: "draft" | "keyTerms" | "transcribe" | "backTranslate" | "consult";
-  setActiveTab: (tab: "draft" | "keyTerms" | "transcribe" | "backTranslate" | "consult") => void;
+  activeTab: "draft" | "keyTerms" | "backTranslate" | "consult";
+  setActiveTab: (tab: "draft" | "keyTerms" | "backTranslate" | "consult") => void;
 }
 
 export function WorkspaceTabs({ activeTab, setActiveTab }: WorkspaceTabsProps) {
   return (
     <div className="h-10 bg-muted border-b border-border flex shrink-0">
-      {(["draft", "keyTerms", "transcribe", "backTranslate", "consult"] as const).map((tab) => {
+      {(["draft", "keyTerms", "backTranslate", "consult"] as const).map((tab) => {
         const labels: Record<string, string> = {
           draft: "Draft",
           keyTerms: "Key Terms",
-          transcribe: "Transcribe",
           backTranslate: "Back Translate",
           consult: "Consult",
         };
