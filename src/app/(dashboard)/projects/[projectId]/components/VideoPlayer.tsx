@@ -52,6 +52,13 @@ export function VideoPlayer({
   isStitching,
 }: VideoPlayerProps) {
   const audioSources = project.templates?.audio_sources || [];
+  const getAudioSourceLabel = (value: string | null) => {
+    if (!value) return "Pilih Audio";
+    if (value === "PROJECT_AUDIO") return "Audio Rekaman Saya (Scene)";
+
+    const selected = audioSources.find((source) => source.url === value);
+    return selected?.name.replace(/\.wav$/i, "") || "default_audio";
+  };
 
   // Referensi kontainer utama agar kontrol bar ikut fullscreen
   const containerRef = useRef<HTMLDivElement>(null);
@@ -258,11 +265,13 @@ export function VideoPlayer({
               size="sm"
               className="text-[10px] font-mono rounded bg-background text-muted-foreground border-border cursor-pointer"
             >
-              <SelectValue placeholder="Pilih Audio" />
+              <SelectValue placeholder="Pilih Audio">
+                {(value) => getAudioSourceLabel(value)}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent align="end" className="text-[10px] font-mono">
               {audioSources.map((source) => (
-                <SelectItem key={source.name} value={source.url}>
+                <SelectItem key={source.url} value={source.url}>
                   {source.name.replace(/\.wav$/i, "")}
                 </SelectItem>
               ))}

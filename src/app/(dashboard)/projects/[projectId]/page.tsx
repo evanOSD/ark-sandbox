@@ -46,6 +46,20 @@ interface RawScene {
   template_loops: RawTemplateLoop[] | null;
 }
 
+type TemplateJoin = {
+  name: string;
+  video_url: string | null;
+  audio_url_1: string | null;
+  audio_label_1: string | null;
+  audio_url_2: string | null;
+  audio_label_2: string | null;
+  audio_url_3: string | null;
+  audio_label_3: string | null;
+  audio_url_4: string | null;
+  audio_label_4: string | null;
+  mne_audio_url: string | null;
+};
+
 export default async function ProjectDetailsPage({ params }: PageProps) {
   const resolvedParams = await params;
   const { projectId } = resolvedParams;
@@ -98,20 +112,12 @@ export default async function ProjectDetailsPage({ params }: PageProps) {
     redirect("/projects");
   }
 
-  // Format templates within project
-  const t = rawProject.templates as unknown as {
-    name: string;
-    video_url: string | null;
-    audio_url_1: string | null;
-    audio_label_1: string | null;
-    audio_url_2: string | null;
-    audio_label_2: string | null;
-    audio_url_3: string | null;
-    audio_label_3: string | null;
-    audio_url_4: string | null;
-    audio_label_4: string | null;
-    mne_audio_url: string | null;
-  };
+  // Supabase joins can return either a single object or an array depending on relationship metadata.
+  const templatesRaw = rawProject.templates as unknown as
+    | TemplateJoin
+    | TemplateJoin[]
+    | null;
+  const t = Array.isArray(templatesRaw) ? templatesRaw[0] : templatesRaw;
   const audio_sources: Array<{ name: string; url: string }> = [];
   if (t) {
     if (t.audio_url_1) {
