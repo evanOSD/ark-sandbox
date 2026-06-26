@@ -3,11 +3,27 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { motion } from "framer-motion";
+import {
+  ArrowLeft,
+  Loader2,
+  AlertTriangle,
+  Save,
+  FolderOpen,
+  FileText,
+  BookOpen,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  LabeledSelect,
+  type LabeledSelectOption,
+} from "@/components/shared/LabeledSelect";
+import {
+  LabeledMultiSelect,
+  type LabeledMultiSelectOption,
+} from "@/components/shared/LabeledMultiSelect";
 import { updateProject } from "../actions";
 
 export interface ProjectTemplate {
@@ -31,28 +47,88 @@ interface EditProjectClientProps {
     template_id: string;
     templates?: { name: string } | null;
   };
+  templates: ProjectTemplate[];
   users: ProjectUser[];
   initialAssignedUserIds: string[];
 }
 
-export function EditProjectClient({ project, users, initialAssignedUserIds }: EditProjectClientProps) {
+export function EditProjectClient({
+  project,
+  templates,
+  users,
+  initialAssignedUserIds,
+}: EditProjectClientProps) {
   const router = useRouter();
   const [projectName, setProjectName] = useState(project.name);
   const [projectDesc, setProjectDesc] = useState(project.description || "");
-  const [assignedUsers, setAssignedUsers] = useState<string[]>(initialAssignedUserIds);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(
+    project.template_id,
+  );
+  const [assignedUsers, setAssignedUsers] = useState<string[]>(
+    initialAssignedUserIds,
+  );
   const [isLoading, setIsLoading] = useState(false);
 
+  const originalTemplateId = project.template_id;
+  const templateChanged = selectedTemplateId !== originalTemplateId;
+
+  // ── Adapt data for LabeledSelect ──────────────────────────────────────────
+  const templateOptions: LabeledSelectOption[] = templates.map((t) => ({
+    value: t.id,
+    label: t.name,
+    description: t.description ?? undefined,
+    isOriginal: t.id === originalTemplateId,
+  }));
+
+  // Dot on trigger: green = same as original, amber = changed
+  const templateOptionsForTrigger: LabeledSelectOption[] = templateOptions.map(
+    (o) => ({
+      ...o,
+      isOriginal:
+        o.value === selectedTemplateId && o.value === originalTemplateId
+          ? true
+          : o.value === selectedTemplateId && o.value !== originalTemplateId
+            ? false
+            : o.isOriginal,
+    }),
+  );
+
+  // Description of the currently selected template
+  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
+
+  // ── Adapt data for LabeledMultiSelect ────────────────────────────────────
+  const userOptions: LabeledMultiSelectOption[] = users.map((u) => ({
+    value: u.id,
+    label: u.username,
+    description: u.email,
+    badge: u.role,
+    badgeVariant: u.role === "admin" ? "danger" : "default",
+  }));
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
   const handleUpdateProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!projectName) {
+    if (!projectName.trim()) {
       alert("Nama proyek wajib diisi");
       return;
     }
-
+    if (templateChanged) {
+      const ok = confirm(
+        "⚠️ Mengganti template akan mengubah struktur scene dan loop. Data rekaman yang ada mungkin tidak sesuai. Lanjutkan?",
+      );
+      if (!ok) return;
+    }
     setIsLoading(true);
     try {
-      await updateProject(project.id, projectName, projectDesc, assignedUsers);
-      router.push(`/projects/${project.id}`);
+      await updateProject(
+        project.id,
+        projectName,
+        projectDesc,
+        assignedUsers,
+        selectedTemplateId,
+      );
+      // Redirect to /projects after save
+      router.push("/projects");
       router.refresh();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Gagal memperbarui proyek");
@@ -61,140 +137,207 @@ export function EditProjectClient({ project, users, initialAssignedUserIds }: Ed
     }
   };
 
-  const toggleUserAssignment = (userId: string) => {
-    setAssignedUsers((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
-    );
-  };
-
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Back Link */}
-      <Link
-        href={`/projects/${project.id}`}
-        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors group"
-      >
-        <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
-        Kembali ke Detail Proyek
-      </Link>
+    <div className="h-[calc(100vh-6rem)] flex flex-col gap-0">
+      {/* ─── Top bar ─── */}
+      <div className="flex items-center justify-between mb-4 shrink-0">
+        <div className="flex items-center gap-3">
+          {/* Back → /projects */}
+          <Link
+            href="/projects"
+            className="inline-flex items-center gap-1.5 text-xs underline font-bold text-info hover:text-info-hover transition-colors group"
+          >
+            <ArrowLeft className="h-3.5 w-3.5 transition-transform font-bold group-hover:-translate-x-1" />
+            Kembali
+          </Link>
+          <span className="text-muted-foreground text-xs">/</span>
+          <span className="text-xs font-semibold text-foreground truncate max-w-[240px]">
+            {project.name}
+          </span>
+        </div>
 
-      <Card className="border border-border/50 shadow-lg">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold tracking-tight">Edit Proyek: {project.name}</CardTitle>
-          <CardDescription>
-            Perbarui nama, deskripsi, atau ubah penugasan translator untuk proyek ini.
-          </CardDescription>
-        </CardHeader>
-        <form onSubmit={handleUpdateProject}>
-          <CardContent className="space-y-5">
-            {/* Project Name */}
-            <div className="space-y-2">
-              <Label htmlFor="p-name" className="text-sm font-semibold">Nama Proyek</Label>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            onClick={() => router.push("/projects")}
+            disabled={isLoading}
+            className="text-xs font-semibold h-8 px-4 rounded-lg"
+          >
+            Batal
+          </Button>
+          <Button
+            form="edit-project-form"
+            type="submit"
+            size="sm"
+            disabled={isLoading || !projectName.trim()}
+            className="text-xs font-bold h-8 px-4 rounded-lg gap-1.5 shadow-md"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" /> Menyimpan...
+              </>
+            ) : (
+              <>
+                <Save className="h-3 w-3" /> Simpan
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* ─── Page title ─── */}
+      <div className="shrink-0 mb-5">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground leading-none">
+          Edit Proyek
+        </h1>
+      </div>
+
+      {/* ─── Main 2-column grid ─── */}
+      <form
+        id="edit-project-form"
+        onSubmit={handleUpdateProject}
+        className="flex-1 grid grid-cols-5 gap-5 min-h-0"
+      >
+        {/* LEFT COLUMN */}
+        <div className="col-span-2 flex flex-col gap-4 min-h-0 overflow-y-auto pr-0.5">
+          {/* Card: Informasi Proyek */}
+          <div className="rounded-xl border border-border/60 bg-card p-4 space-y-3.5 shrink-0">
+            <div className="flex items-center gap-2">
+              <FolderOpen className="h-5 w-5 text-primary shrink-0" />
+              <p className="text-[12px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                Informasi Proyek
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <label
+                htmlFor="p-name"
+                className="text-xs font-semibold text-muted-foreground"
+              >
+                Nama Proyek <span className="text-red-500">*</span>
+              </label>
               <Input
                 id="p-name"
                 value={projectName}
                 onChange={(e) => setProjectName(e.target.value)}
                 placeholder="Contoh: Proyek Matius Bahasa Sunda"
                 required
-                className="w-full"
+                className="h-9 text-sm rounded-lg bg-background border-border focus:ring-4 focus:ring-primary/10 placeholder:text-muted-foreground/30 font-medium"
               />
             </div>
 
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="p-desc" className="text-sm font-semibold">Deskripsi Proyek</Label>
+            <div className="space-y-1">
+              <label
+                htmlFor="p-desc"
+                className="text-xs font-semibold text-muted-foreground"
+              >
+                Deskripsi
+              </label>
               <Input
                 id="p-desc"
                 value={projectDesc}
                 onChange={(e) => setProjectDesc(e.target.value)}
-                placeholder="Bahasa target, wilayah, atau catatan proyek..."
-                className="w-full"
+                placeholder="Bahasa target, wilayah, atau catatan..."
+                className="h-9 text-sm rounded-lg bg-background border-border focus:ring-4 focus:ring-primary/10 placeholder:text-muted-foreground/30"
+              />
+            </div>
+          </div>
+
+          {/* Card: Template Master */}
+          <div className="rounded-xl border border-border/60 bg-card p-4 space-y-3 shrink-0">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-indigo-500 shrink-0" />
+              <p className="text-[12px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                Template Master
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <label
+                htmlFor="template-select"
+                className="text-xs font-semibold text-muted-foreground"
+              >
+                Pilih Template
+              </label>
+
+              <LabeledSelect
+                id="template-select"
+                options={templateOptionsForTrigger}
+                value={selectedTemplateId}
+                onChange={setSelectedTemplateId}
+                placeholder="Pilih template..."
               />
             </div>
 
-            {/* Locked Template Indicator */}
-            <div className="space-y-2 bg-muted/40 p-3.5 rounded-lg border border-border">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Template Master Terkunci</Label>
-              <p className="text-sm font-bold text-foreground">{project.templates?.name || "N/A"}</p>
-              <p className="text-[10px] text-muted-foreground">Template master proyek tidak dapat diubah setelah proyek dibuat.</p>
+            {templateChanged && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25"
+              >
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-[11px] leading-relaxed text-amber-600 dark:text-amber-400">
+                  Mengganti template akan mengubah seluruh struktur scene &amp;
+                  loop. Data rekaman lama mungkin tidak sesuai.
+                </p>
+              </motion.div>
+            )}
+          </div>
+
+          {/* Card: Deskripsi Template (read-only) */}
+          <div className="rounded-xl border border-border/60 bg-card p-4 space-y-3 shrink-0">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-emerald-500 shrink-0" />
+              <p className="text-[12px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                Deskripsi Template
+              </p>
             </div>
 
-            {/* User Assignments Checkboxes */}
-            <div className="space-y-2.5 pt-2">
-              <Label className="text-sm font-semibold">Tugaskan Penerjemah</Label>
-              <div className="border border-border rounded-lg divide-y bg-background/50 overflow-hidden">
-                {users.map((u) => {
-                  const isAssigned = assignedUsers.includes(u.id);
-                  return (
-                    <div
-                      key={u.id}
-                      onClick={() => toggleUserAssignment(u.id)}
-                      className={`flex items-center justify-between p-3.5 cursor-pointer select-none transition-colors hover:bg-muted/30 ${
-                        isAssigned ? "bg-primary/5 hover:bg-primary/10" : ""
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
-                            isAssigned
-                              ? "bg-primary border-primary text-primary-foreground scale-105"
-                              : "border-border"
-                          }`}
-                        >
-                          {isAssigned && <span className="text-[10px] font-bold">✓</span>}
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-foreground">{u.username}</p>
-                          <p className="text-[10px] text-muted-foreground">{u.email}</p>
-                        </div>
-                      </div>
-                      <span
-                        className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full select-none ${
-                          u.role === "admin"
-                            ? "bg-red-500/10 text-red-600 dark:text-red-500"
-                            : "bg-primary/10 text-primary"
-                        }`}
-                      >
-                        {u.role}
-                      </span>
-                    </div>
-                  );
-                })}
-
-                {users.length === 0 && (
-                  <div className="p-6 text-center text-xs text-muted-foreground">
-                    Tidak ada penerjemah terdaftar.
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-end gap-3 border-t bg-muted/20 p-4 rounded-b-lg">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.push(`/projects/${project.id}`)}
-              disabled={isLoading}
-              className="text-xs font-semibold"
-            >
-              Batal
-            </Button>
-            <Button
-              type="submit"
-              disabled={isLoading || !projectName}
-              className="text-xs font-semibold gap-1.5"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-3 w-3 animate-spin" /> Menyimpan...
-                </>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {selectedTemplate?.description ? (
+                selectedTemplate.description
               ) : (
-                "Simpan Perubahan"
+                <span className="italic text-muted-foreground/40">
+                  Tidak ada deskripsi untuk template ini.
+                </span>
               )}
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
+            </p>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: User assignment via LabeledMultiSelect */}
+        <div className="col-span-3 flex flex-col min-h-0 rounded-xl border border-border/60 bg-card overflow-hidden">
+          {/* Header */}
+          <div className="px-4 py-3 border-b border-border/60 shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-emerald-500 shrink-0" />
+                <p className="text-[12px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                  Penugasan Penerjemah
+                </p>
+              </div>
+              <span className="text-[12px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                {assignedUsers.length} dipilih
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1 ml-5">
+              Klik nama pengguna untuk menambah atau menghapus dari daftar
+              penugasan.
+            </p>
+          </div>
+
+          {/* LabeledMultiSelect fills remaining height */}
+          <LabeledMultiSelect
+            options={userOptions}
+            values={assignedUsers}
+            onChange={setAssignedUsers}
+            searchPlaceholder="Cari nama atau email pengguna..."
+            className="flex-1 min-h-0"
+          />
+        </div>
+      </form>
     </div>
   );
 }

@@ -33,7 +33,7 @@ export async function deleteRecording(projectId: string, recordingId: string) {
   revalidatePath(`/projects/${projectId}`)
 }
 
-export async function updateProject(projectId: string, name: string, description: string, assignedUserIds: string[]) {
+export async function updateProject(projectId: string, name: string, description: string, assignedUserIds: string[], templateId?: string) {
   const supabase = await createClient()
 
   if (!name) {
@@ -41,12 +41,18 @@ export async function updateProject(projectId: string, name: string, description
   }
 
   // Update project details
+  const updatePayload: Record<string, unknown> = {
+    name,
+    description: description || null,
+  }
+
+  if (templateId) {
+    updatePayload.template_id = templateId
+  }
+
   const { error: projectError } = await supabase
     .from('projects')
-    .update({
-      name,
-      description: description || null,
-    })
+    .update(updatePayload)
     .eq('id', projectId)
 
   if (projectError) {

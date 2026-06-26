@@ -29,18 +29,21 @@ export default async function TemplatesPage() {
 
   const { data: templates } = await supabase
     .from("templates")
-    .select("*, template_scenes(id, template_loops(id))")
+    .select("*, template_scenes(id, template_loops(id)), projects(id)")
     .order("created_at", { ascending: false });
 
   const templatesData: Template[] = (templates || []).map((t: Record<string, unknown>) => {
     const scenes = (t.template_scenes as Record<string, unknown>[]) || [];
     const total_scenes = scenes.length;
     const total_loops = scenes.reduce((acc: number, scene: Record<string, unknown>) => acc + ((scene.template_loops as unknown[])?.length || 0), 0);
+    const projects = (t.projects as Record<string, unknown>[]) || [];
+    const total_projects = projects.length;
     return {
       ...(t as unknown as Template),
       audio_url: (t as { audio_url_1?: string }).audio_url_1 || null,
       total_scenes,
       total_loops,
+      total_projects,
     };
   });
 

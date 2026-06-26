@@ -290,7 +290,7 @@ export function WorkspaceClient({
                           </div>
                         </div>
                         {term.meaning_or_note && (
-                          <p className="text-xs text-muted-foreground italic leading-relaxed">
+                          <p className="text-xs text-muted-foreground italic leading-relaxed whitespace-pre-line">
                             Definisi: {term.meaning_or_note}
                           </p>
                         )}

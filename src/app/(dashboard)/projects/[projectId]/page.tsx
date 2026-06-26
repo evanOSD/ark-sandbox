@@ -20,6 +20,7 @@ interface RawKeyTerm {
   id: string;
   term: string;
   original_word: string | null;
+  meaning_or_note: string | null;
 }
 
 interface RawLoopKeyTerm {
@@ -186,7 +187,8 @@ export default async function ProjectDetailsPage({ params }: PageProps) {
           key_terms (
             id,
             term,
-            original_word
+            original_word,
+            meaning_or_note
           )
         )
       )

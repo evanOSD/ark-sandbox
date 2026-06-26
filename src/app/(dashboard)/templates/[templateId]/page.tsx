@@ -135,5 +135,17 @@ export default async function TemplateDetailsPage({ params }: PageProps) {
     })),
   }));
 
-  return <TemplateClient template={formattedTemplate} scenes={formattedScenes} />;
+  // Fetch projects using this template
+  const { data: projects } = await supabase
+    .from("projects")
+    .select("id, name, description")
+    .eq("template_id", templateId);
+
+  return (
+    <TemplateClient
+      template={formattedTemplate}
+      scenes={formattedScenes}
+      projects={projects || []}
+    />
+  );
 }

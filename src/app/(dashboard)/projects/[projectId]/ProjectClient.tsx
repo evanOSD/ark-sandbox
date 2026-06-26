@@ -2,13 +2,13 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import {
-  ChevronLeft,
-  ChevronRight,
-  ShieldCheck,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { updateRecordingStatus, deleteRecording, saveTranslationText } from "./actions";
+import {
+  updateRecordingStatus,
+  deleteRecording,
+  saveTranslationText,
+} from "./actions";
 import { VideoPlayer } from "./components/VideoPlayer";
 import { NotesPanel } from "./components/NotesPanel";
 import { WorkspaceTabs } from "./components/WorkspaceTabs";
@@ -20,6 +20,7 @@ export interface KeyTerm {
   id: string;
   term: string;
   original_word: string | null;
+  meaning_or_note: string | null;
 }
 
 export interface Recording {
@@ -80,27 +81,42 @@ export interface Note {
   loopName: string;
 }
 
-
-export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) {
+export function ProjectClient({
+  project,
+  scenes,
+  isAdmin,
+}: ProjectClientProps) {
   // State
   const [localScenes, setLocalScenes] = useState<Scene[]>(scenes);
-  const [activeTab, setActiveTab] = useState<"draft" | "keyTerms" | "backTranslate" | "consult">("draft");
+  const [activeTab, setActiveTab] = useState<
+    "draft" | "keyTerms" | "backTranslate" | "consult"
+  >("draft");
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
-  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(false);
-  const [stitchedAudioUrls, setStitchedAudioUrls] = useState<Record<string, string>>({});
+  const [stitchedAudioUrls, setStitchedAudioUrls] = useState<
+    Record<string, string>
+  >({});
   const [isStitching, setIsStitching] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
+    "idle",
+  );
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
   const [prevScenes, setPrevScenes] = useState<Scene[]>(scenes);
   if (scenes !== prevScenes) {
     setPrevScenes(scenes);
     setLocalScenes(scenes);
   }
-  const sortedScenes = [...localScenes].sort((a, b) => a.sequence_number - b.sequence_number);
+  const sortedScenes = [...localScenes].sort(
+    (a, b) => a.sequence_number - b.sequence_number,
+  );
   sortedScenes.forEach((s) => {
-    s.loops = [...s.loops].sort((a, b) => a.sequence_number - b.sequence_number);
+    s.loops = [...s.loops].sort(
+      (a, b) => a.sequence_number - b.sequence_number,
+    );
   });
 
   // Video states
@@ -142,8 +158,6 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
 
   const activeScene = sortedScenes[activeSceneIndex] || null;
 
-
-
   const toggleVideoPlayback = () => {
     const video = videoRef.current;
     if (!video) return;
@@ -159,14 +173,20 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
       setIsVideoPlaying(false);
       setActiveLoopPlayId(null);
     } else {
-      video.play().catch((err) => console.log("Video playback postponed:", err));
+      video
+        .play()
+        .catch((err) => console.log("Video playback postponed:", err));
       if (refAudioRef.current) {
         refAudioRef.current.currentTime = video.currentTime;
-        refAudioRef.current.play().catch((err) => console.log("Ref audio play error:", err));
+        refAudioRef.current
+          .play()
+          .catch((err) => console.log("Ref audio play error:", err));
       }
       if (isMneEnabled && mneAudioRef.current) {
         mneAudioRef.current.currentTime = video.currentTime;
-        mneAudioRef.current.play().catch((err) => console.log("MNE play error:", err));
+        mneAudioRef.current
+          .play()
+          .catch((err) => console.log("MNE play error:", err));
       }
       setIsVideoPlaying(true);
     }
@@ -207,11 +227,15 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
     const handlePlaySync = () => {
       if (refAudioRef.current && refAudioRef.current.paused) {
         refAudioRef.current.currentTime = video.currentTime;
-        refAudioRef.current.play().catch((err) => console.log("Ref audio play error:", err));
+        refAudioRef.current
+          .play()
+          .catch((err) => console.log("Ref audio play error:", err));
       }
       if (isMneEnabled && mneAudioRef.current && mneAudioRef.current.paused) {
         mneAudioRef.current.currentTime = video.currentTime;
-        mneAudioRef.current.play().catch((err) => console.log("MNE play error:", err));
+        mneAudioRef.current
+          .play()
+          .catch((err) => console.log("MNE play error:", err));
       }
     };
 
@@ -244,7 +268,9 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
 
     const handleTimeUpdateSync = () => {
       if (!activeLoopPlayId || !activeScene) return;
-      const currentLoop = activeScene.loops.find((l) => l.id === activeLoopPlayId);
+      const currentLoop = activeScene.loops.find(
+        (l) => l.id === activeLoopPlayId,
+      );
       if (!currentLoop) return;
 
       const currentTimeMs = video.currentTime * 1000;
@@ -311,16 +337,23 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
     refAudio.load();
 
     const setPositionAndPlay = () => {
-      refAudio.currentTime = videoRef.current ? videoRef.current.currentTime : 0;
+      refAudio.currentTime = videoRef.current
+        ? videoRef.current.currentTime
+        : 0;
       if (isVideoPlaying) {
-        refAudio.play().catch((err) => console.log("Ref audio play postponed:", err));
+        refAudio
+          .play()
+          .catch((err) => console.log("Ref audio play postponed:", err));
       }
     };
 
-    if (refAudio.readyState >= 1) { // HAVE_METADATA or higher
+    if (refAudio.readyState >= 1) {
+      // HAVE_METADATA or higher
       setPositionAndPlay();
     } else {
-      refAudio.addEventListener("loadedmetadata", setPositionAndPlay, { once: true });
+      refAudio.addEventListener("loadedmetadata", setPositionAndPlay, {
+        once: true,
+      });
     }
 
     return () => {
@@ -330,23 +363,33 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
 
   // Auto-stitch logic when "PROJECT_AUDIO" is selected
   useEffect(() => {
-    if (activeAudioUrl === "PROJECT_AUDIO" && activeScene && !stitchedAudioUrls[activeScene.id]) {
+    if (
+      activeAudioUrl === "PROJECT_AUDIO" &&
+      activeScene &&
+      !stitchedAudioUrls[activeScene.id]
+    ) {
       let isMounted = true;
       const stitch = async () => {
         setIsStitching(true);
         try {
-          const { stitchSceneAudio } = await import('@/lib/audio-stitcher');
+          const { stitchSceneAudio } = await import("@/lib/audio-stitcher");
           const loopsWithAudio = activeScene.loops
-            .filter(l => l.recording?.recorded_audio_url)
-            .map(l => ({
+            .filter((l) => l.recording?.recorded_audio_url)
+            .map((l) => ({
               start_time_ms: l.start_time_ms,
-              audio_url: l.recording!.recorded_audio_url
+              audio_url: l.recording!.recorded_audio_url,
             }));
 
-          const maxEnd = Math.max(...activeScene.loops.map(l => l.end_time_ms), 1000);
+          const maxEnd = Math.max(
+            ...activeScene.loops.map((l) => l.end_time_ms),
+            1000,
+          );
           const blobUrl = await stitchSceneAudio(loopsWithAudio, maxEnd);
           if (blobUrl && isMounted) {
-            setStitchedAudioUrls(prev => ({ ...prev, [activeScene.id]: blobUrl }));
+            setStitchedAudioUrls((prev) => ({
+              ...prev,
+              [activeScene.id]: blobUrl,
+            }));
           }
         } catch (err) {
           console.error(err);
@@ -355,7 +398,9 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
         }
       };
       stitch();
-      return () => { isMounted = false; };
+      return () => {
+        isMounted = false;
+      };
     }
   }, [activeAudioUrl, activeScene, stitchedAudioUrls]);
 
@@ -364,9 +409,13 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
     setIsMneEnabled(nextState);
     if (mneAudioRef.current) {
       if (nextState) {
-        mneAudioRef.current.currentTime = videoRef.current ? videoRef.current.currentTime : 0;
+        mneAudioRef.current.currentTime = videoRef.current
+          ? videoRef.current.currentTime
+          : 0;
         if (isVideoPlaying) {
-          mneAudioRef.current.play().catch((err) => console.log("MNE play error:", err));
+          mneAudioRef.current
+            .play()
+            .catch((err) => console.log("MNE play error:", err));
         }
       } else {
         mneAudioRef.current.pause();
@@ -439,7 +488,10 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
   };
 
   // Status handler (approve / reject)
-  const handleStatusChange = async (recId: string, status: "pending" | "recorded" | "approved") => {
+  const handleStatusChange = async (
+    recId: string,
+    status: "pending" | "recorded" | "approved",
+  ) => {
     setIsLoading(true);
     try {
       await updateRecordingStatus(project.id, recId, status);
@@ -452,7 +504,8 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
 
   // Delete handler
   const handleDeleteRecording = async (recId: string) => {
-    if (!confirm("Apakah Anda yakin ingin menolak & menghapus rekaman ini?")) return;
+    if (!confirm("Apakah Anda yakin ingin menolak & menghapus rekaman ini?"))
+      return;
     setIsLoading(true);
     try {
       await deleteRecording(project.id, recId);
@@ -468,7 +521,7 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
     // Check if anything actually changed
     let oldText = "";
     for (const s of localScenes) {
-      const l = s.loops.find(lp => lp.id === loopId);
+      const l = s.loops.find((lp) => lp.id === loopId);
       if (l) {
         oldText = l.recording?.translated_text || "";
         break;
@@ -479,32 +532,34 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
     setSaveStatus("saving");
 
     // Optimistic Update
-    setLocalScenes(prevScenes => prevScenes.map(s => ({
-      ...s,
-      loops: s.loops.map(l => {
-        if (l.id === loopId) {
-          const rec = l.recording;
-          return {
-            ...l,
-            recording: rec 
-              ? { ...rec, translated_text: text }
-              : {
-                  id: `temp-rec-${loopId}`,
-                  recorded_audio_url: "",
-                  status: "pending" as const,
-                  created_at: new Date().toISOString(),
-                  translated_text: text
-                }
-          };
-        }
-        return l;
-      })
-    })));
+    setLocalScenes((prevScenes) =>
+      prevScenes.map((s) => ({
+        ...s,
+        loops: s.loops.map((l) => {
+          if (l.id === loopId) {
+            const rec = l.recording;
+            return {
+              ...l,
+              recording: rec
+                ? { ...rec, translated_text: text }
+                : {
+                    id: `temp-rec-${loopId}`,
+                    recorded_audio_url: "",
+                    status: "pending" as const,
+                    created_at: new Date().toISOString(),
+                    translated_text: text,
+                  },
+            };
+          }
+          return l;
+        }),
+      })),
+    );
 
     try {
       await saveTranslationText(project.id, loopId, text);
       setSaveStatus("saved");
-      setLastSavedTime(new Date().toTimeString().split(' ')[0]);
+      setLastSavedTime(new Date().toTimeString().split(" ")[0]);
     } catch (err) {
       console.error(err);
       setSaveStatus("idle");
@@ -524,7 +579,7 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
       author: "unknown",
       age: "Just now",
       text: newNoteText,
-      loopName: selectedNoteLoop || (activeScene?.loops?.[0]?.name || "Umum"),
+      loopName: selectedNoteLoop || activeScene?.loops?.[0]?.name || "Umum",
     };
 
     setNotes((prev) => [newNote, ...prev]);
@@ -534,7 +589,9 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
   // Map loops to display text based on selected audio source
   const loopsWithDisplay = (activeScene?.loops || []).map((loop) => {
     // Determine active audio index (0 for audio_url_1, 1 for audio_url_2, etc.)
-    const activeAudioIndex = audioSources.findIndex((src) => src.url === activeAudioUrl);
+    const activeAudioIndex = audioSources.findIndex(
+      (src) => src.url === activeAudioUrl,
+    );
     let dbText: string | null = null;
     if (activeAudioIndex === 0) dbText = loop.script_text_1;
     else if (activeAudioIndex === 1) dbText = loop.script_text_2;
@@ -551,20 +608,30 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background text-foreground">
-      
       {/* 1. Header/Top Bar */}
       <header className="h-12 bg-muted border-b border-border flex items-center justify-between px-4 shrink-0 z-10 select-none">
         <div className="flex items-center gap-3">
           <Link href="/projects">
-            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-secondary text-muted-foreground hover:text-foreground">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 hover:bg-secondary text-muted-foreground hover:text-foreground"
+            >
               <ChevronLeft className="h-5 w-5" />
             </Button>
           </Link>
           <div className="flex items-center gap-2">
-            <span className="font-bold text-sm tracking-tight text-foreground">{project.name}</span>
+            <span className="font-bold text-sm tracking-tight text-foreground">
+              {project.name}
+            </span>
             {isAdmin && (
               <Link href={`/projects/${project.id}/edit`}>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" title="Edit Proyek">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-primary"
+                  title="Edit Proyek"
+                >
                   <ShieldCheck className="h-4 w-4" />
                 </Button>
               </Link>
@@ -578,7 +645,9 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
             <button
               type="button"
               className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-              onClick={() => setActiveSceneIndex((prev) => Math.max(0, prev - 1))}
+              onClick={() =>
+                setActiveSceneIndex((prev) => Math.max(0, prev - 1))
+              }
               disabled={activeSceneIndex === 0}
             >
               <ChevronLeft className="h-4 w-4" />
@@ -589,7 +658,11 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
             <button
               type="button"
               className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-              onClick={() => setActiveSceneIndex((prev) => Math.min(sortedScenes.length - 1, prev + 1))}
+              onClick={() =>
+                setActiveSceneIndex((prev) =>
+                  Math.min(sortedScenes.length - 1, prev + 1),
+                )
+              }
               disabled={activeSceneIndex === sortedScenes.length - 1}
             >
               <ChevronRight className="h-4 w-4" />
@@ -602,19 +675,27 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
           {saveStatus === "saving" && (
             <>
               <span className="w-1.5 h-1.5 rounded-full bg-amber-550 animate-pulse" />
-              <span className="text-amber-555 font-semibold animate-pulse">Menyimpan...</span>
+              <span className="text-amber-555 font-semibold animate-pulse">
+                Menyimpan...
+              </span>
             </>
           )}
           {saveStatus === "saved" && (
             <>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-555" />
-              <span className="text-emerald-555 font-semibold">Tersimpan {lastSavedTime}</span>
+              <span className="text-emerald-555 font-semibold">
+                Tersimpan {lastSavedTime}
+              </span>
             </>
           )}
           {saveStatus === "idle" && (
             <>
               <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
-              <span>{lastSavedTime ? `Tersimpan ${lastSavedTime}` : "Semua tersimpan"}</span>
+              <span>
+                {lastSavedTime
+                  ? `Tersimpan ${lastSavedTime}`
+                  : "Semua tersimpan"}
+              </span>
             </>
           )}
         </div>
@@ -622,7 +703,6 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
 
       {/* 2. Main split container */}
       <div className="flex flex-1 overflow-hidden">
-        
         {/* Left Column (Video Player & Notes/Comments) */}
         <div className="w-[40%] flex flex-col border-r border-border overflow-hidden shrink-0">
           <VideoPlayer
@@ -637,10 +717,12 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
             toggleVideoPlayback={toggleVideoPlayback}
             handleStopVideo={handleStopVideo}
             handleToggleMne={handleToggleMne}
-            stitchedAudioUrl={activeScene ? stitchedAudioUrls[activeScene.id] : null}
+            stitchedAudioUrl={
+              activeScene ? stitchedAudioUrls[activeScene.id] : null
+            }
             isStitching={isStitching}
           />
-          
+
           <NotesPanel
             notes={notes}
             setNotes={setNotes}
@@ -656,16 +738,12 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
 
         {/* Right Column (Editor Workspace Area) */}
         <div className="flex-1 flex flex-col overflow-hidden bg-background">
-          <WorkspaceTabs
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-          />
+          <WorkspaceTabs activeTab={activeTab} setActiveTab={setActiveTab} />
 
           {/* Workspace Content Area */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Scrollable loop entries based on selected tab */}
             <div className="flex-1 overflow-y-auto">
-              
               {activeTab === "draft" && (
                 <DraftTab
                   project={project}
@@ -690,19 +768,21 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
               )}
 
               {["backTranslate", "consult"].includes(activeTab) && (
-                <PlaceholderTab activeTab={activeTab as "backTranslate" | "consult"} />
+                <PlaceholderTab
+                  activeTab={activeTab as "backTranslate" | "consult"}
+                />
               )}
-
             </div>
           </div>
         </div>
-
       </div>
 
       {/* 3. Bottom Bar / Status Bar */}
       <footer className="h-7 bg-muted border-t border-border flex items-center justify-between px-3 text-[10px] text-muted-foreground shrink-0 select-none">
         <div className="flex items-center gap-3">
-          <span>Scene {activeSceneIndex + 1} of {sortedScenes.length}</span>
+          <span>
+            Scene {activeSceneIndex + 1} of {sortedScenes.length}
+          </span>
           <span className="text-muted-foreground/50">|</span>
           <span className="font-mono">00:00:22:29</span>
         </div>
@@ -711,7 +791,6 @@ export function ProjectClient({ project, scenes, isAdmin }: ProjectClientProps) 
           <span>S/R Status</span>
         </div>
       </footer>
-
     </div>
   );
 }

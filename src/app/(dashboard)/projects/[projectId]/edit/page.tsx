@@ -1,6 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import { EditProjectClient, ProjectUser } from "./EditProjectClient";
+import { EditProjectClient, ProjectUser, ProjectTemplate } from "./EditProjectClient";
 
 interface PageProps {
   params: Promise<{ projectId: string }>;
@@ -45,6 +45,12 @@ export default async function EditProjectPage({ params }: PageProps) {
     redirect("/projects");
   }
 
+  // Fetch all templates
+  const { data: templates } = await supabase
+    .from("templates")
+    .select("id, name, description")
+    .order("created_at", { ascending: false });
+
   // Fetch all users
   const { data: users } = await supabase
     .from("users")
@@ -68,6 +74,7 @@ export default async function EditProjectPage({ params }: PageProps) {
         template_id: string;
         templates: { name: string } | null;
       }}
+      templates={(templates || []) as ProjectTemplate[]}
       users={(users || []) as ProjectUser[]}
       initialAssignedUserIds={assignedUserIds}
     />

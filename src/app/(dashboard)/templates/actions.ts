@@ -131,10 +131,29 @@ export async function createTemplate(formData: FormData) {
 export async function deleteTemplate(id: string) {
   const supabase = await createClient()
 
-  const { error } = await supabase.from('templates').delete().eq('id', id)
+  // Cek apakah template ini digunakan oleh project apa saja
+  const { data: projects, error: checkError } = await supabase
+    .from('projects')
+    .select('name')
+    .eq('template_id', id)
+
+  if (checkError) {
+    throw new Error(checkError.message)
+  }
+
+  if (projects && projects.length > 0) {
+    const projectNames = projects.map((p) => p.name).join(', ')
+    throw new Error(`Template ini tidak dapat dihapus karena sedang digunakan di project: ${projectNames}`)
+  }
+
+  const { data, error } = await supabase.from('templates').delete().eq('id', id).select()
 
   if (error) {
     throw new Error(error.message)
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error("Gagal menghapus template dari database. Aksi ditolak (RLS) atau template tidak ditemukan.")
   }
 
   revalidatePath('/templates')
@@ -163,6 +182,31 @@ export async function createScene(templateId: string, name: string, sequenceNumb
 export async function deleteScene(sceneId: string, templateId: string) {
   const supabase = await createClient()
 
+  // 1. Get all loops in this scene
+  const { data: loops } = await supabase
+    .from('template_loops')
+    .select('id')
+    .eq('scene_id', sceneId)
+
+  if (loops && loops.length > 0) {
+    const loopIds = loops.map((l) => l.id)
+
+    // 2. Delete loop key terms relations
+    const { error: termErr } = await supabase
+      .from('loop_key_terms')
+      .delete()
+      .in('template_loop_id', loopIds)
+    if (termErr) throw new Error(termErr.message)
+
+    // 3. Delete loops
+    const { error: loopErr } = await supabase
+      .from('template_loops')
+      .delete()
+      .in('id', loopIds)
+    if (loopErr) throw new Error(loopErr.message)
+  }
+
+  // 4. Delete scene
   const { error } = await supabase.from('template_scenes').delete().eq('id', sceneId)
 
   if (error) {
@@ -453,3 +497,132 @@ export async function updateLoop(
 
   revalidatePath(`/templates/${templateId}`)
 }
+
+export async function saveScenesBulk(
+  templateId: string,
+  toCreate: Array<{ name: string; sequence_number: number }>,
+  toUpdate: Array<{ id: string; name: string; sequence_number: number }>,
+  toDelete: string[]
+) {
+  const supabase = await createClient()
+
+  // 1. Delete
+  if (toDelete.length > 0) {
+    // Get all loops in these scenes
+    const { data: loops } = await supabase
+      .from('template_loops')
+      .select('id')
+      .in('scene_id', toDelete)
+
+    if (loops && loops.length > 0) {
+      const loopIds = loops.map((l) => l.id)
+
+      // Delete loop key terms relations
+      const { error: termErr } = await supabase
+        .from('loop_key_terms')
+        .delete()
+        .in('template_loop_id', loopIds)
+      if (termErr) throw new Error(termErr.message)
+
+      // Delete loops
+      const { error: loopErr } = await supabase
+        .from('template_loops')
+        .delete()
+        .in('id', loopIds)
+      if (loopErr) throw new Error(loopErr.message)
+    }
+
+    const { error: delErr } = await supabase
+      .from('template_scenes')
+      .delete()
+      .in('id', toDelete)
+    if (delErr) throw new Error(delErr.message)
+  }
+
+  // 2. Create
+  if (toCreate.length > 0) {
+    const inserts = toCreate.map((s) => ({
+      template_id: templateId,
+      name: s.name,
+      sequence_number: s.sequence_number,
+    }))
+    const { error: insErr } = await supabase
+      .from('template_scenes')
+      .insert(inserts)
+    if (insErr) throw new Error(insErr.message)
+  }
+
+  // 3. Update
+  if (toUpdate.length > 0) {
+    const promises = toUpdate.map((s) =>
+      supabase
+        .from('template_scenes')
+        .update({ name: s.name, sequence_number: s.sequence_number })
+        .eq('id', s.id)
+    )
+    const results = await Promise.all(promises)
+    for (const res of results) {
+      if (res.error) throw new Error(res.error.message)
+    }
+  }
+
+  revalidatePath(`/templates/${templateId}`)
+  revalidatePath(`/templates/${templateId}/scenes`)
+}
+
+export async function saveLoopsBulk(
+  sceneId: string,
+  templateId: string,
+  toCreate: Array<{ name: string; sequence_number: number; start_time_ms: number; end_time_ms: number }>,
+  toUpdate: Array<{ id: string; name: string; sequence_number: number; start_time_ms: number; end_time_ms: number }>,
+  toDelete: string[]
+) {
+  const supabase = await createClient()
+
+  // 1. Delete
+  if (toDelete.length > 0) {
+    const { error: delErr } = await supabase
+      .from('template_loops')
+      .delete()
+      .in('id', toDelete)
+    if (delErr) throw new Error(delErr.message)
+  }
+
+  // 2. Create
+  if (toCreate.length > 0) {
+    const inserts = toCreate.map((l) => ({
+      scene_id: sceneId,
+      name: l.name,
+      sequence_number: l.sequence_number,
+      start_time_ms: l.start_time_ms,
+      end_time_ms: l.end_time_ms,
+    }))
+    const { error: insErr } = await supabase
+      .from('template_loops')
+      .insert(inserts)
+    if (insErr) throw new Error(insErr.message)
+  }
+
+  // 3. Update
+  if (toUpdate.length > 0) {
+    const promises = toUpdate.map((l) =>
+      supabase
+        .from('template_loops')
+        .update({
+          name: l.name,
+          sequence_number: l.sequence_number,
+          start_time_ms: l.start_time_ms,
+          end_time_ms: l.end_time_ms,
+        })
+        .eq('id', l.id)
+    )
+    const results = await Promise.all(promises)
+    for (const res of results) {
+      if (res.error) throw new Error(res.error.message)
+    }
+  }
+
+  revalidatePath(`/templates/${templateId}`)
+  revalidatePath(`/templates/${templateId}/scenes/${sceneId}/edit`)
+}
+
