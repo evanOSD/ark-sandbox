@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { logout } from "@/app/login/actions";
 import Image from "next/image";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface SidebarProps {
   role: string;
@@ -122,7 +123,7 @@ export function Sidebar({
                 key={index}
                 href={item.href}
                 className={cn(
-                  "flex items-center rounded-lg py-2.5 transition-all hover:text-primary",
+                  "flex items-center rounded-lg py-2.5 transition-all hover:text-foreground",
                   isCollapsed ? "justify-center px-0" : "gap-3 px-3",
                   isActive
                     ? "bg-primary/10 text-primary font-semibold"
@@ -144,6 +145,8 @@ export function Sidebar({
           isCollapsed ? "p-2" : "p-4",
         )}
       >
+        <ThemeToggle isCollapsed={isCollapsed} />
+
         <div
           className={cn(
             "flex items-center bg-muted/40 rounded-lg transition-all duration-300 ease-in-out w-full",

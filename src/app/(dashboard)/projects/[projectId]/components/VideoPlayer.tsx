@@ -263,7 +263,7 @@ export function VideoPlayer({
           >
             <SelectTrigger
               size="sm"
-              className="text-[10px] font-mono rounded bg-background text-muted-foreground border-border cursor-pointer"
+              className="text-[10px] font-mono rounded bg-background text-muted-foreground border-border cursor-pointer min-w-[180px]"
             >
               <SelectValue placeholder="Pilih Audio">
                 {(value) => getAudioSourceLabel(value)}

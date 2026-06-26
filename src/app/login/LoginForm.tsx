@@ -118,10 +118,10 @@ export function LoginForm({
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className="w-full max-w-4xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800/80 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] dark:shadow-[0_32px_64px_-16px_rgba(0,0,0,0.45)] rounded-3xl overflow-hidden grid md:grid-cols-12 min-h-[560px]"
+      className="w-full max-w-4xl bg-card border border-border/80 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] dark:shadow-[0_32px_64px_-16px_rgba(0,0,0,0.45)] rounded-3xl overflow-hidden grid md:grid-cols-12 min-h-[560px]"
     >
       {/* PANEL KIRI (Estetika Audio) */}
-      <div className="hidden md:flex md:col-span-5 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-8 flex-col justify-between relative overflow-hidden border-r border-zinc-800/20">
+      <div className="hidden md:flex md:col-span-5 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-8 flex-col justify-between relative overflow-hidden border-r border-border/20">
         {/* Ornamen Grid Panel Kiri */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff02_1px,transparent_1px),linear-gradient(to_bottom,#ffffff02_1px,transparent_1px)] bg-[size:20px_20px] select-none pointer-events-none" />
         <div className="absolute top-[-20%] left-[-20%] w-[300px] h-[300px] bg-primary/20 rounded-full blur-3xl pointer-events-none select-none" />
@@ -145,7 +145,7 @@ export function LoginForm({
             ].map((val, i) => (
               <motion.div
                 key={i}
-                className="flex-1 bg-gradient-to-t from-primary via-indigo-400 to-white rounded-full"
+                className="flex-1 bg-gradient-to-t from-primary via-violet-400 to-white rounded-full"
                 animate={{
                   height: [
                     `${val * 100}%`,
@@ -165,7 +165,7 @@ export function LoginForm({
             <h3 className="text-xl font-bold tracking-tight text-white leading-tight select-text">
               Perekaman & Penerjemahan Audio Tersinkronisasi.
             </h3>
-            <p className="text-zinc-400 text-xs leading-relaxed font-medium select-text">
+            <p className="text-muted-foreground text-xs leading-relaxed font-medium select-text">
               Platform digital terintegrasi untuk manajemen produksi audio, alur
               kerja sulih suara, dan lokalisasi bahasa secara kolaboratif.
             </p>
@@ -180,7 +180,7 @@ export function LoginForm({
       </div>
 
       {/* PANEL KANAN (Formulir Login Modern) */}
-      <div className="col-span-12 md:col-span-7 p-6 sm:p-10 lg:p-12 flex flex-col justify-center bg-zinc-50/40 dark:bg-zinc-900/10">
+      <div className="col-span-12 md:col-span-7 p-6 sm:p-10 lg:p-12 flex flex-col justify-center bg-muted/10">
         {/* BRAND LOGO CONTAINER */}
         <motion.div
           variants={itemVariants}
@@ -192,7 +192,7 @@ export function LoginForm({
               alt="ARK Logo"
               fill
               priority
-              className="object-contain dark:invert"
+              className="object-contain"
             />
           </div>
           <p className="text-[16px] font-extrabold uppercase tracking-widest text-foreground mt-2 hidden md:block select-text">
@@ -241,7 +241,7 @@ export function LoginForm({
               <div className="flex items-center justify-between">
                 <Label
                   htmlFor="usernameOrEmail"
-                  className="text-xs font-bold text-zinc-600 dark:text-zinc-400 tracking-wide select-text"
+                  className="text-xs font-bold text-muted-foreground tracking-wide select-text"
                 >
                   Username atau Email
                 </Label>
@@ -257,7 +257,7 @@ export function LoginForm({
                   autoComplete="username email"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  className="pl-10 bg-white dark:bg-zinc-950/40 border-zinc-200 dark:border-zinc-800 h-10.5 rounded-xl focus:bg-background transition-all focus:ring-4 focus:ring-primary/10 text-sm font-medium placeholder:text-muted-foreground/30 shadow-xs select-text"
+                  className="pl-10 bg-background border-border h-10.5 rounded-xl transition-all focus:ring-4 focus:ring-primary/10 text-sm font-medium placeholder:text-muted-foreground/30 shadow-xs select-text"
                 />
               </div>
               <p className="text-[10px] text-muted-foreground/50 font-medium min-h-[14px] select-text">
@@ -283,7 +283,7 @@ export function LoginForm({
                   <div className="flex items-center justify-between">
                     <Label
                       htmlFor="password"
-                      className="text-xs font-bold text-zinc-600 dark:text-zinc-400 tracking-wide select-text"
+                      className="text-xs font-bold text-muted-foreground tracking-wide select-text"
                     >
                       Password
                     </Label>
@@ -303,7 +303,7 @@ export function LoginForm({
                       placeholder="••••••••"
                       required={!isEmail}
                       autoComplete="current-password"
-                      className="pl-10 bg-white dark:bg-zinc-950/40 border-zinc-200 dark:border-zinc-800 h-10.5 rounded-xl focus:bg-background transition-all focus:ring-4 focus:ring-primary/10 text-sm shadow-xs select-text"
+                      className="pl-10 bg-background border-border h-10.5 rounded-xl transition-all focus:ring-4 focus:ring-primary/10 text-sm shadow-xs select-text"
                     />
                   </div>
                 </motion.div>
@@ -322,7 +322,7 @@ export function LoginForm({
                   className="w-full select-none"
                 >
                   <Button
-                    className="w-full font-bold h-10.5 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 transition-all shadow-md active:scale-[0.995] disabled:opacity-70 flex items-center justify-center gap-2 cursor-pointer text-sm"
+                    className="w-full font-bold h-10.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md active:scale-[0.995] disabled:opacity-70 flex items-center justify-center gap-2 cursor-pointer text-sm"
                     type="submit"
                     disabled={isLoggingIn}
                   >
@@ -342,10 +342,10 @@ export function LoginForm({
             {/* Divider Antarmuka Modern */}
             <div className="relative w-full py-0.5 select-none">
               <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-zinc-200 dark:border-zinc-800/80" />
+                <span className="w-full border-t border-border/80" />
               </div>
               <div className="relative flex justify-center text-[9px] uppercase font-bold tracking-widest">
-                <span className="bg-zinc-50 dark:bg-zinc-950 px-3 text-muted-foreground/50 rounded-md py-0.5 border border-zinc-200/50 dark:border-zinc-800/30 select-text">
+                <span className="bg-background px-3 text-muted-foreground/50 rounded-md py-0.5 border border-border/30 select-text">
                   {isEmail ? "Otorisasi Tunggal" : "Atau Metode Alternatif"}
                 </span>
               </div>
@@ -360,7 +360,7 @@ export function LoginForm({
               className={`w-full h-10.5 rounded-xl gap-2.5 font-bold transition-all duration-200 text-sm cursor-pointer shadow-xs select-none ${
                 isEmail
                   ? "bg-primary text-primary-foreground hover:bg-primary/95 shadow-lg shadow-primary/10 scale-[1.01] active:scale-[0.99]"
-                  : "bg-white dark:bg-zinc-950/20 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 active:scale-[0.995]"
+                  : "bg-card border-border hover:bg-muted/40 active:scale-[0.995]"
               }`}
             >
               {isGoogleLoading ? (
