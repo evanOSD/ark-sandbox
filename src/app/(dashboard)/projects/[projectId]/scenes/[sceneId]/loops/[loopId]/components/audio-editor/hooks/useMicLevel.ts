@@ -38,21 +38,52 @@ export function useMicLevel(isOpen: boolean): number {
           ).webkitAudioContext;
         audioCtx = new AudioCtxClass();
         analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
+        analyser.fftSize = 1024; // Better resolution for time-domain RMS analysis
 
         source = audioCtx.createMediaStreamSource(stream);
         source.connect(analyser);
 
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
+        const bufferLength = analyser.fftSize;
+        const dataArray = new Float32Array(bufferLength);
 
+        // Calibrated piecewise mapping optimized for browser mic input dynamic range
+        const dbToPercentage = (db: number): number => {
+          if (db <= -50) return 0;
+          if (db >= -10) return 100;
+          if (db < -38) {
+            return 0 + ((db - (-50)) / 12) * 20; // [-50, -38] -> [0, 20]%
+          }
+          if (db < -28) {
+            return 20 + ((db - (-38)) / 10) * 20; // [-38, -28] -> [20, 40]%
+          }
+          if (db < -20) {
+            return 40 + ((db - (-28)) / 8) * 20; // [-28, -20] -> [40, 60]%
+          }
+          if (db < -15) {
+            return 60 + ((db - (-20)) / 5) * 20; // [-20, -15] -> [60, 80]%
+          }
+          return 80 + ((db - (-15)) / 5) * 20; // [-15, -10] -> [80, 100]%
+        };
+ 
         const tick = () => {
           if (!mounted || !analyser) return;
-          analyser.getByteFrequencyData(dataArray);
-          let sum = 0;
-          for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
-          const pct = Math.min(100, ((sum / bufferLength) / 128) * 100);
-          setMicLevel(pct);
+          analyser.getFloatTimeDomainData(dataArray);
+          
+          // Calculate RMS (Root Mean Square) for accurate signal level
+          let sumSquares = 0;
+          for (let i = 0; i < bufferLength; i++) {
+            sumSquares += dataArray[i] * dataArray[i];
+          }
+          const rms = Math.sqrt(sumSquares / bufferLength);
+          
+          // Convert RMS to Decibel (dB)
+          let db = -Infinity;
+          if (rms > 0.0001) { // approx -80 dB
+            db = 20 * Math.log10(rms);
+          }
+          
+          const pct = dbToPercentage(db);
+          setMicLevel(Math.round(pct));
           animationFrameId = requestAnimationFrame(tick);
         };
         tick();

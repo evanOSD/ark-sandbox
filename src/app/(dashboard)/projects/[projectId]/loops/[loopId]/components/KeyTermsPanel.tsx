@@ -19,8 +19,7 @@ export function KeyTermsPanel({ keyTerms, projectId }: KeyTermsPanelProps) {
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
-          <Tag className="h-4.5 w-4.5 text-primary" /> Kamus Kata Kunci (Key
-          Terms)
+          <Tag className="h-4.5 w-4.5 text-primary" /> Kata Kunci (Key Terms)
         </CardTitle>
         <CardDescription>
           Kata kunci di putaran ini yang perlu disepakati ejaan dan
