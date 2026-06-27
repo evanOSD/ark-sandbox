@@ -86,10 +86,10 @@ export function DraftTab({
                   variant="ghost"
                   size="icon"
                   className={cn(
-                    "h-6 w-6 rounded-full border shrink-0 mt-0.5 transition-colors",
+                    "h-6 w-6 rounded-full border shrink-0 mt-0.5 transition-colors cursor-pointer",
                     activeLoopPlayId === loop.id
-                      ? "bg-amber-600 border-transparent text-foreground hover:bg-amber-700"
-                      : "text-muted-foreground hover:text-foreground border-border hover:bg-secondary"
+                      ? "text-rose-500 border-rose-950/40 hover:bg-rose-950/20 bg-background/40 hover:text-rose-400"
+                      : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400"
                   )}
                   onClick={() => handlePlayLoop(loop.id, loop.start_time_ms)}
                   title={activeLoopPlayId === loop.id ? "Hentikan Pemutaran Loop" : "Putar Loop (Video & Audio)"}

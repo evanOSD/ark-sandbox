@@ -47,6 +47,8 @@ export function useAudioEditorState({
     setRecordedBlob: rec.setRecordedBlob,
     setRecordedUrl: rec.setRecordedUrl,
     recordedUrl: rec.recordedUrl,
+    recordedBlob: rec.recordedBlob,
+    actualRecordedDuration: rec.actualRecordedDuration,
   });
 
   // 4. Combine all states and actions for the component consumption

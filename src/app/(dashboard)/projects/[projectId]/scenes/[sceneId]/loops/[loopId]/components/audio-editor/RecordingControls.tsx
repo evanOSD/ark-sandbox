@@ -9,7 +9,6 @@ import {
   Save,
   Volume2,
   VolumeX,
-  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -26,8 +25,6 @@ interface RecordingControlsProps {
   onMuteSelection: () => void;
   onDeleteSelection: () => void;
   onNormalize: () => void;
-  onClearSelection: () => void;
-  onDiscardRecording: () => void;
 
   // Recording state
   isRecording: boolean;
@@ -55,8 +52,6 @@ export function RecordingControls({
   onMuteSelection,
   onDeleteSelection,
   onNormalize,
-  onClearSelection,
-  onDiscardRecording,
   isRecording,
   isPaused,
   recordingTimeMs,
@@ -85,9 +80,9 @@ export function RecordingControls({
           className="h-8 w-8 text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 hover:text-emerald-400 bg-background/40 disabled:opacity-50"
         >
           {isRecPlaying ? (
-            <Pause className="w-4 h-4" />
+            <Pause className="w-4 h-4 fill-current" />
           ) : (
-            <Play className="w-4 h-4" />
+            <Play className="w-4 h-4 fill-current" />
           )}
         </Button>
 
@@ -100,7 +95,7 @@ export function RecordingControls({
           disabled={!recordedUrl}
           className="h-8 w-8 text-rose-500 border-rose-950/40 hover:bg-rose-950/20 hover:text-rose-400 bg-background/40 disabled:opacity-50"
         >
-          <Square className="w-4 h-4" />
+          <Square className="w-4 h-4 fill-current" />
         </Button>
 
         <Button
@@ -139,45 +134,21 @@ export function RecordingControls({
           <Volume2 className="w-4 h-4" />
         </Button>
 
-        {(recordedUrl || isRecording) && (
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            title="Hapus Semua"
-            onClick={() => {
-              if (selectedRegion) {
-                onDeleteSelection();
-              } else {
-                onDiscardRecording();
-              }
-            }}
-            className="h-8 w-8 bg-red-600 text-black hover:bg-red-500 hover:text-black border-none transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        )}
+        <Button
+          type="button"
+          variant="outline"
+          title="Hapus Seleksi"
+          onClick={onDeleteSelection}
+          disabled={!selectedRegion || !recordedUrl}
+          className="h-8 text-xs font-bold gap-1.5 px-3 border-red-950/40 text-red-500 hover:bg-red-950/20 disabled:opacity-50 disabled:bg-transparent disabled:text-muted-foreground disabled:border-border hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer disabled:cursor-not-allowed"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span>Hapus Seleksi</span>
+        </Button>
       </div>
 
       {/* Right: Selection info + recording/upload controls */}
       <div className="flex items-center gap-3">
-        {selectedRegion && (
-          <div className="flex items-center gap-2 bg-muted/50 border border-border rounded px-2 py-1">
-            <span className="text-[10px] text-muted-foreground font-mono font-bold">
-              Seleksi: {selectedRegion.start.toFixed(2)}s –{" "}
-              {selectedRegion.end.toFixed(2)}s (Durasi:{" "}
-              {(selectedRegion.end - selectedRegion.start).toFixed(2)}s)
-            </span>
-            <button
-              type="button"
-              onClick={onClearSelection}
-              title="Batal Seleksi"
-              className="text-muted-foreground hover:text-foreground hover:bg-muted-foreground/20 rounded-full p-0.5 transition-colors"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        )}
 
         {isRecording ? (
           <RecordingActiveControls
@@ -309,13 +280,6 @@ function RecordingIdleControls({
       >
         Replace
       </Button>
-
-      {/* Duration display */}
-      {recordedUrl && (
-        <div className="text-xs font-mono font-bold text-emerald-500 ml-1">
-          {recordedDuration.toFixed(2)}s / {loopDurationS.toFixed(2)}s
-        </div>
-      )}
 
       {/* Upload button */}
       {recordedUrl && (

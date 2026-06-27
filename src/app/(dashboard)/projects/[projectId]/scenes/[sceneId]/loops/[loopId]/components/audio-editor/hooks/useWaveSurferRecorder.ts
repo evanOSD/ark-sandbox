@@ -12,6 +12,11 @@ interface UseWaveSurferRecorderOptions {
   isOpen: boolean;
   onSave: (blob: Blob) => void;
   onClose: () => void;
+  audioSettings: {
+    echoCancellation: boolean;
+    noiseSuppression: boolean;
+    autoGainControl: boolean;
+  };
 }
 
 interface UseWaveSurferRecorderReturn {
@@ -37,6 +42,7 @@ export function useWaveSurferRecorder({
   isOpen,
   onSave,
   onClose,
+  audioSettings,
 }: UseWaveSurferRecorderOptions): UseWaveSurferRecorderReturn {
   const [recordingState, setRecordingState] = useState<RecordingState>("idle");
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
@@ -101,11 +107,16 @@ export function useWaveSurferRecorder({
 
     record.on("record-end", (blob) => {
       console.log("[WS] record-end fired, blob size:", blob.size, "type:", blob.type);
+      console.log("[Audio Settings] AFTER recording stops (completed) - Final State:", {
+        echoCancellation: audioSettings.echoCancellation,
+        noiseSuppression: audioSettings.noiseSuppression,
+        autoGainControl: audioSettings.autoGainControl,
+      });
       setRecordedBlob(blob);
       setRecordingState("recorded");
       setIsPaused(false);
     });
-  }, [destroyAll]);
+  }, [destroyAll, audioSettings]);
 
   /**
    * createPlaybackWS — mirrors the new WaveSurfer created in record-end handler.
@@ -200,24 +211,48 @@ export function useWaveSurferRecorder({
     setIsPlaying(false);
     setIsPaused(false);
 
+    console.log("[Audio Settings] BEFORE recording - State:", {
+      echoCancellation: audioSettings.echoCancellation,
+      noiseSuppression: audioSettings.noiseSuppression,
+      autoGainControl: audioSettings.autoGainControl,
+    });
+
     try {
-      console.log("[WS] startRecording with deviceId:", deviceId);
-      await record.startRecording({ deviceId } as MediaTrackConstraints);
+      const constraints: MediaTrackConstraints = {
+        deviceId: deviceId ? { exact: deviceId } : undefined,
+        echoCancellation: audioSettings.echoCancellation,
+        noiseSuppression: audioSettings.noiseSuppression,
+        autoGainControl: audioSettings.autoGainControl,
+      };
+
+      console.log("[Audio Settings] DURING recording (applying constraints):", constraints);
+
+      await record.startRecording(constraints);
       setRecordingState("recording");
-      console.log("[WS] startRecording resolved — state: recording");
+
+      console.log("[Audio Settings] DURING recording (successfully started):", {
+        echoCancellation: audioSettings.echoCancellation,
+        noiseSuppression: audioSettings.noiseSuppression,
+        autoGainControl: audioSettings.autoGainControl,
+      });
     } catch (err) {
       console.error("[WS] startRecording threw:", err);
       alert("Gagal memulai perekaman: " + (err instanceof Error ? err.message : err));
     }
-  }, [container, createRecordingWS]);
+  }, [container, createRecordingWS, audioSettings]);
 
   const stopRecord = useCallback(() => {
     const record = recordRef.current;
     console.log("[WS] stopRecord clicked, record:", record, "isRecording:", record?.isRecording(), "isPaused:", record?.isPaused());
+    console.log("[Audio Settings] STOP clicked - Status BEFORE stopping:", {
+      echoCancellation: audioSettings.echoCancellation,
+      noiseSuppression: audioSettings.noiseSuppression,
+      autoGainControl: audioSettings.autoGainControl,
+    });
     if (record && (record.isRecording() || record.isPaused())) {
       record.stopRecording();
     }
-  }, []);
+  }, [audioSettings]);
 
   const pauseRecord = useCallback(() => {
     console.log("[WS] pauseRecord");

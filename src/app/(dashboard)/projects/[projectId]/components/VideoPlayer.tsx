@@ -34,6 +34,7 @@ interface VideoPlayerProps {
   handleToggleMne: () => void;
   stitchedAudioUrl?: string | null;
   isStitching?: boolean;
+  onTimecodeUpdate?: (timecode: string, fps: number) => void;
 }
 
 export function VideoPlayer({
@@ -50,6 +51,7 @@ export function VideoPlayer({
   handleToggleMne,
   stitchedAudioUrl,
   isStitching,
+  onTimecodeUpdate,
 }: VideoPlayerProps) {
   const audioSources = project.templates?.audio_sources || [];
   const getAudioSourceLabel = (value: string | null) => {
@@ -92,6 +94,44 @@ export function VideoPlayer({
       );
     };
   }, []);
+
+  const onTimecodeUpdateRef = useRef(onTimecodeUpdate);
+  useEffect(() => {
+    onTimecodeUpdateRef.current = onTimecodeUpdate;
+  }, [onTimecodeUpdate]);
+
+  // Listen to video current time changes and calculate frame-accurate SMPTE Timecode at 25 fps
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const updateTimecode = () => {
+      const seconds = video.currentTime || 0;
+      const fps = 25; // Constant 25 fps (standard for the project videos)
+      
+      const totalFrames = Math.floor(seconds * fps);
+      const hours = Math.floor(totalFrames / (3600 * fps));
+      const minutes = Math.floor((totalFrames % (3600 * fps)) / (60 * fps));
+      const secs = Math.floor((totalFrames % (60 * fps)) / fps);
+      const frames = Math.floor(totalFrames % fps);
+
+      const pad = (val: number) => String(val).padStart(2, "0");
+      if (onTimecodeUpdateRef.current) {
+        onTimecodeUpdateRef.current(`${pad(hours)}:${pad(minutes)}:${pad(secs)}:${pad(frames)}`, fps);
+      }
+    };
+
+    video.addEventListener("timeupdate", updateTimecode);
+    video.addEventListener("loadedmetadata", updateTimecode);
+
+    // Initial update
+    updateTimecode();
+
+    return () => {
+      video.removeEventListener("timeupdate", updateTimecode);
+      video.removeEventListener("loadedmetadata", updateTimecode);
+    };
+  }, [project.templates?.video_url, videoRef]);
 
   const togglePictureInPicture = async () => {
     const video = videoRef.current;
@@ -167,7 +207,7 @@ export function VideoPlayer({
         <button
           type="button"
           onClick={togglePictureInPicture}
-          className="h-7 w-7 text-muted-foreground hover:text-foreground border border-border rounded-full flex items-center justify-center hover:bg-secondary transition-colors shrink-0 cursor-pointer"
+          className="h-7 w-7 text-foreground/80 border border-zinc-850/50 hover:bg-zinc-800/20 bg-background/40 hover:text-foreground rounded-full flex items-center justify-center transition-colors shrink-0 cursor-pointer"
           title="Toggle Picture-in-Picture"
         >
           <Film className="h-4 w-4" />
@@ -180,8 +220,8 @@ export function VideoPlayer({
           className={cn(
             "h-7 w-7 border rounded-full flex items-center justify-center transition-colors shrink-0 cursor-pointer",
             isFullscreen
-              ? "bg-zinc-800 text-white border-zinc-700 hover:bg-zinc-700"
-              : "text-muted-foreground hover:text-foreground border-border hover:bg-secondary",
+              ? "text-indigo-400 border-indigo-950/40 hover:bg-indigo-950/20 bg-background/40 hover:text-indigo-300"
+              : "text-foreground/80 border-zinc-850/50 hover:bg-zinc-800/20 bg-background/40 hover:text-foreground",
           )}
           title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
         >
@@ -195,23 +235,28 @@ export function VideoPlayer({
         <button
           type="button"
           onClick={toggleVideoPlayback}
-          className="h-7 w-7 text-foreground/90 hover:text-foreground border border-border rounded-full flex items-center justify-center hover:bg-secondary transition-colors shrink-0 cursor-pointer"
+          className={cn(
+            "h-7 w-7 border rounded-full flex items-center justify-center transition-colors shrink-0 cursor-pointer",
+            isVideoPlaying
+              ? "text-rose-500 border-rose-950/40 hover:bg-rose-950/20 bg-background/40 hover:text-rose-400"
+              : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400"
+          )}
           title={isVideoPlaying ? "Pause" : "Play Scene"}
         >
           {isVideoPlaying ? (
-            <Pause className="h-3.5 w-3.5" />
+            <Pause className="h-3.5 w-3.5 fill-current" />
           ) : (
-            <Play className="h-3.5 w-3.5 fill-zinc-300 ml-0.5" />
+            <Play className="h-3.5 w-3.5 fill-current ml-0.5" />
           )}
         </button>
 
         <button
           type="button"
           onClick={handleStopVideo}
-          className="h-7 w-7 text-foreground/90 hover:text-foreground border border-border rounded-full flex items-center justify-center hover:bg-secondary transition-colors shrink-0 cursor-pointer"
+          className="h-7 w-7 text-rose-500 border border-rose-950/40 rounded-full flex items-center justify-center hover:bg-rose-950/20 hover:text-rose-400 bg-background/40 transition-colors shrink-0 cursor-pointer"
           title="Stop & Reset"
         >
-          <Square className="h-3 w-3 fill-zinc-300" />
+          <Square className="h-3 w-3 fill-current" />
         </button>
 
         <button
@@ -219,12 +264,12 @@ export function VideoPlayer({
           onClick={handleToggleMne}
           disabled={!project.templates?.mne_audio_url}
           className={cn(
-            "h-7 w-7 rounded-full flex items-center justify-center transition-colors shrink-0 border cursor-pointer",
+            "h-7 w-7 rounded-full flex items-center justify-center transition-colors shrink-0 border cursor-pointer text-foreground/80",
             !project.templates?.mne_audio_url
-              ? "opacity-30 cursor-not-allowed text-zinc-600 border-border"
+              ? "opacity-30 cursor-not-allowed border-zinc-850/40 bg-transparent"
               : isMneEnabled
-                ? "bg-amber-600 border-transparent text-foreground hover:bg-amber-700"
-                : "bg-background text-muted-foreground border-border hover:text-foreground hover:bg-secondary",
+                ? "bg-amber-600 border-amber-950/40 hover:bg-amber-700"
+                : "bg-background/40 border-zinc-850/50 hover:bg-zinc-800/20",
           )}
           title={
             project.templates?.mne_audio_url

@@ -37,9 +37,9 @@ export function ReferenceWaveform({
             className="h-6 text-[11px] font-semibold text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 hover:text-emerald-400 bg-background/40 px-2"
           >
             {isRefPlaying ? (
-              <Pause className="w-3 h-3 mr-1" />
+              <Pause className="w-3 h-3 mr-1 fill-current" />
             ) : (
-              <Play className="w-3 h-3 mr-1" />
+              <Play className="w-3 h-3 mr-1 fill-current" />
             )}
             {isRefPlaying ? "Pause" : "Putar Referensi"}
           </Button>
@@ -50,7 +50,7 @@ export function ReferenceWaveform({
             onClick={onStopRefPlay}
             className="h-6 text-[11px] font-semibold text-rose-500 border-rose-950/40 hover:bg-rose-950/20 hover:text-rose-400 bg-background/40 px-2"
           >
-            <Square className="w-3 h-3 mr-1" />
+            <Square className="w-3 h-3 mr-1 fill-current" />
             Stop
           </Button>
         </div>

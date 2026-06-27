@@ -6,6 +6,7 @@ import { BookOpen, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Project, Loop } from "../WorkspaceClient";
 import { LineRecordingModal } from "./audio-editor/LineRecordingModal";
+import { ReplaceConfirmModal } from "./audio-editor/ReplaceConfirmModal";
 import { AudioSourceTabs } from "./audio-editor/AudioSourceTabs";
 import { AudioSettingsPopover } from "./audio-editor/AudioSettingsPopover";
 /*
@@ -52,7 +53,10 @@ export default function AudioEditor({
 }: AudioEditorProps) {
   // ── Hooks ──────────────────────────────────────────────────────────────────
   const audioSettings = useAudioSettings();
-  const [recordingMode, setRecordingMode] = useState<"append" | "replace" | null>(null);
+  const [recordingMode, setRecordingMode] = useState<
+    "append" | "replace" | null
+  >(null);
+  const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
   const [portalTarget, setPortalTarget] = useState<Element | null>(null);
 
   useEffect(() => {
@@ -103,6 +107,16 @@ export default function AudioEditor({
       projectId: project.id,
       loopId: loop.id,
     });
+
+  const handleSaveAndUpload = async () => {
+    // 1. Normalize all first
+    const normalizedBlob = await editor.handleNormalize(true);
+    // 2. Upload the normalized blob (or fallback to original if normalization returned null/nothing changed)
+    const blobToUpload = normalizedBlob || editor.recordedBlob;
+    if (blobToUpload) {
+      handleUploadRecording(blobToUpload);
+    }
+  };
 
   const editor = useAudioEditorState({
     projectId: project.id,
@@ -241,15 +255,20 @@ export default function AudioEditor({
           />
           */}
 
-          {isOverDuration && (
-            <div className="mx-4 my-2 p-2 bg-red-950/30 border border-red-900/40 rounded-lg text-xs text-red-400 font-semibold flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
-              <span>
-                Rekaman Anda lebih panjang {(overDurationMs / 1000).toFixed(2)}{" "}
-                detik dari Audio Referensi.
-              </span>
-            </div>
-          )}
+          <div className="mx-4 my-2 min-h-[22px] flex items-center">
+            {isOverDuration ? (
+              <div className="w-full p-1 bg-red-950/30 border border-red-900/40 rounded-lg text-[11px] text-destructive font-semibold flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                <span>
+                  Rekaman Anda lebih panjang{" "}
+                  {(overDurationMs / 1000).toFixed(2)} detik dari Audio
+                  Referensi.
+                </span>
+              </div>
+            ) : (
+              <div className="h-[22px] w-full" />
+            )}
+          </div>
 
           {/* Waveforms */}
           <div className="space-y-2">
@@ -268,6 +287,8 @@ export default function AudioEditor({
               recCursorTime={editor.recCursorTime}
               loopDurationMs={loopDurationMs}
               recordedDuration={editor.actualRecordedDuration}
+              selectedRegion={editor.selectedRegion}
+              onClearSelection={editor.handleClearSelection}
             />
 
             {/* Edit + record controls */}
@@ -281,21 +302,23 @@ export default function AudioEditor({
               onMuteSelection={editor.handleMuteSelection}
               onDeleteSelection={editor.handleDeleteSelection}
               onNormalize={editor.handleNormalize}
-              onClearSelection={editor.handleClearSelection}
-              onDiscardRecording={editor.handleDiscardRecording}
               isRecording={editor.isRecording}
               isPaused={editor.isPaused}
               recordingTimeMs={editor.recordingProgressTimeMs}
               loopDurationMs={editor.activeLoopDurationMs}
               isUploading={isUploading}
               recordedDuration={editor.actualRecordedDuration}
-              onStartRecording={(mode) => setRecordingMode(mode)}
+              onStartRecording={(mode) => {
+                if (mode === "replace") {
+                  setShowReplaceConfirm(true);
+                } else {
+                  setRecordingMode("append");
+                }
+              }}
               onPauseRecording={editor.pauseRecording}
               onResumeRecording={editor.resumeRecording}
               onStopRecording={editor.stopRecording}
-              onUploadRecording={() =>
-                handleUploadRecording(editor.recordedBlob)
-              }
+              onUploadRecording={handleSaveAndUpload}
             />
           </div>
         </div>
@@ -309,6 +332,14 @@ export default function AudioEditor({
         onClose={() => setRecordingMode(null)}
         onSave={handleSaveLine}
         durationMs={loopDurationMs}
+        audioSettings={audioSettings}
+      />
+
+      {/* Replace Confirmation Modal with premium animation */}
+      <ReplaceConfirmModal
+        isOpen={showReplaceConfirm}
+        onClose={() => setShowReplaceConfirm(false)}
+        onConfirm={() => setRecordingMode("replace")}
       />
     </div>
   );

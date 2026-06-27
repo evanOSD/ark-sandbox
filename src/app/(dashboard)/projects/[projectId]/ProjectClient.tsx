@@ -169,6 +169,7 @@ export function ProjectClient({
   // Video states
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [videoTimecode, setVideoTimecode] = useState("00:00:00:00");
 
   // Audio reference selection
   const audioSources = project.templates?.audio_sources || [];
@@ -768,6 +769,7 @@ export function ProjectClient({
               activeScene ? stitchedAudioUrls[activeScene.id] : null
             }
             isStitching={isStitching}
+            onTimecodeUpdate={setVideoTimecode}
           />
 
           <NotesPanel
@@ -832,7 +834,7 @@ export function ProjectClient({
             Scene {activeSceneIndex + 1} of {sortedScenes.length}
           </span>
           <span className="text-muted-foreground/50">|</span>
-          <span className="font-mono">00:00:22:29</span>
+          <span className="font-mono">{videoTimecode}</span>
         </div>
         <div className="flex items-center gap-1.5 font-mono">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -851,8 +853,8 @@ export function ProjectClient({
           style={{
             width: "1000px",
             maxWidth: "1000px",
-            height: "460px",
-            maxHeight: "460px",
+            height: "490px",
+            maxHeight: "490px",
           }}
           className="p-0 overflow-hidden flex flex-col bg-background text-foreground border border-border"
         >

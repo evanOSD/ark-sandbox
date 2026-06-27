@@ -24,12 +24,18 @@ interface LineRecordingModalProps {
   onClose: () => void;
   onSave: (blob: Blob) => void;
   durationMs: number;
+  audioSettings: {
+    echoCancellation: boolean;
+    noiseSuppression: boolean;
+    autoGainControl: boolean;
+  };
 }
 
 export function LineRecordingModal({
   isOpen,
   onClose,
   onSave,
+  audioSettings,
 }: LineRecordingModalProps) {
   const {
     recordingState,
@@ -42,7 +48,7 @@ export function LineRecordingModal({
     stopPlayback,
     saveRecording,
     resetRecorder,
-  } = useWaveSurferRecorder({ isOpen, onSave, onClose });
+  } = useWaveSurferRecorder({ isOpen, onSave, onClose, audioSettings });
 
   const micLevel = useMicLevel(isOpen);
   const dragControls = useDragControls();
@@ -89,6 +95,7 @@ export function LineRecordingModal({
     >
       <DialogContent
         showCloseButton={false}
+        initialFocus={false}
         style={{
           width: "55vw",
           maxWidth: "55vw",

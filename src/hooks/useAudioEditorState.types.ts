@@ -71,6 +71,6 @@ export interface AudioEditorState {
   handleMuteSelection: () => Promise<void>;
   handleDeleteSelection: () => Promise<void>;
   handleClearSelection: () => void;
-  handleNormalize: () => Promise<void>;
+  handleNormalize: (forceNormalizeAll?: boolean) => Promise<Blob | null>;
   handleDiscardRecording: () => Promise<void>;
 }

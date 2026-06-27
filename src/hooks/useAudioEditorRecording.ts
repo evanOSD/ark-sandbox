@@ -80,7 +80,13 @@ export function useAudioEditorRecording({
           }
           await audioCtx.close();
         } catch (err) {
-          console.error("Gagal men-decode recordedBlob untuk durasi:", err);
+          console.error("Gagal men-decode recordedBlob untuk durasi (self-healing triggered):", err);
+          if (active) {
+            await clearLocalRecording(projectId, loopId);
+            setRecordedBlob(null);
+            setRecordedUrl(existingRecordingUrl);
+            setActualRecordedDuration(0);
+          }
         }
       } else if (recordedUrl) {
         try {
@@ -113,7 +119,7 @@ export function useAudioEditorRecording({
     return () => {
       active = false;
     };
-  }, [recordedBlob, recordedUrl]);
+  }, [recordedBlob, recordedUrl, projectId, loopId, existingRecordingUrl]);
 
   const recorderRef = useRef<WavRecorder | null>(null);
   const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -226,13 +232,31 @@ export function useAudioEditorRecording({
     async function loadTempRecording() {
       const tempBlob = await getLocalRecording(projectId, loopId);
       if (tempBlob) {
-        setRecordedBlob(tempBlob);
-        const url = URL.createObjectURL(tempBlob);
-        setRecordedUrl(url);
+        try {
+          const arrayBuffer = await tempBlob.arrayBuffer();
+          const AudioContextClass =
+            window.AudioContext ||
+            (
+              window as Window &
+                typeof globalThis & { webkitAudioContext?: typeof AudioContext }
+            ).webkitAudioContext;
+          const audioCtx = new AudioContextClass();
+          await audioCtx.decodeAudioData(arrayBuffer);
+          await audioCtx.close();
+
+          setRecordedBlob(tempBlob);
+          const url = URL.createObjectURL(tempBlob);
+          setRecordedUrl(url);
+        } catch (err) {
+          console.warn("Temp recording loaded from IndexedDB is corrupt, clearing:", err);
+          await clearLocalRecording(projectId, loopId);
+          setRecordedBlob(null);
+          setRecordedUrl(existingRecordingUrl);
+        }
       }
     }
     loadTempRecording();
-  }, [projectId, loopId]);
+  }, [projectId, loopId, existingRecordingUrl]);
 
   // Initialize Recording WaveSurfer
   useEffect(() => {
@@ -296,10 +320,55 @@ export function useAudioEditorRecording({
       allRegions.forEach((r: Region) => {
         if (r.id !== region.id) r.remove();
       });
+
+      const actualDur = actualRecordedDurationRef.current;
+      if (actualDur > 0) {
+        let start = region.start;
+        let end = region.end;
+        let changed = false;
+        if (start > actualDur) {
+          start = actualDur;
+          changed = true;
+        }
+        if (end > actualDur) {
+          end = actualDur;
+          changed = true;
+        }
+        if (end - start <= 0.01) {
+          region.remove();
+          setSelectedRegion(null);
+          return;
+        }
+        if (changed) {
+          region.setOptions({ start, end });
+        }
+      }
       setSelectedRegion(region);
     });
 
     regions.on("region-updated", (region: Region) => {
+      const actualDur = actualRecordedDurationRef.current;
+      if (actualDur > 0) {
+        let start = region.start;
+        let end = region.end;
+        let changed = false;
+        if (start > actualDur) {
+          start = actualDur;
+          changed = true;
+        }
+        if (end > actualDur) {
+          end = actualDur;
+          changed = true;
+        }
+        if (end - start <= 0.01) {
+          region.remove();
+          setSelectedRegion(null);
+          return;
+        }
+        if (changed) {
+          region.setOptions({ start, end });
+        }
+      }
       setSelectedRegion(region);
     });
 
@@ -359,7 +428,15 @@ export function useAudioEditorRecording({
     );
 
     if (recWavesurfer.current && recordedUrl && !isRecording) {
-      loadAndPadAudio(recordedUrl, maxDurS, recWavesurfer.current);
+      loadAndPadAudio(recordedUrl, maxDurS, recWavesurfer.current).catch(async (err) => {
+        console.error("Gagal memproses dan melakukan pad audio (self-healing triggered):", err);
+        if (recordedBlob) {
+          await clearLocalRecording(projectId, loopId);
+          setRecordedBlob(null);
+          setRecordedUrl(existingRecordingUrl);
+          setActualRecordedDuration(0);
+        }
+      });
     } else if (recWavesurfer.current && !recordedUrl && !isRecording) {
       const silentBlob = createSilentWavBlob(maxDurS);
       const silentUrl = URL.createObjectURL(silentBlob);
@@ -367,7 +444,7 @@ export function useAudioEditorRecording({
         if (err.name !== "AbortError") console.error(err);
       });
     }
-  }, [recordedUrl, isRecording, loopBoundary.end_time_ms, loopBoundary.start_time_ms]);
+  }, [recordedUrl, isRecording, loopBoundary.end_time_ms, loopBoundary.start_time_ms, projectId, loopId, existingRecordingUrl, recordedBlob]);
 
   // Draw red region if recording exceeds template loop duration
   useEffect(() => {
@@ -594,6 +671,10 @@ export function useAudioEditorRecording({
   const stopRecPlay = () => {
     if (!recWavesurfer.current) return;
     recWavesurfer.current.stop();
+    if (recRegionsPlugin.current) {
+      recRegionsPlugin.current.clearRegions();
+    }
+    setSelectedRegion(null);
   };
 
   const handleDiscardRecording = async () => {
