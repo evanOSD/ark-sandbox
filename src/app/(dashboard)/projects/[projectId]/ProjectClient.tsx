@@ -2,12 +2,20 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   updateRecordingStatus,
   deleteRecording,
   saveTranslationText,
+  getLoopWorkspaceData,
 } from "./actions";
 import { VideoPlayer } from "./components/VideoPlayer";
 import { NotesPanel } from "./components/NotesPanel";
@@ -15,6 +23,11 @@ import { WorkspaceTabs } from "./components/WorkspaceTabs";
 import { DraftTab } from "./components/tabs/DraftTab";
 import { KeyTermsTab } from "./components/tabs/KeyTermsTab";
 import { PlaceholderTab } from "./components/tabs/PlaceholderTab";
+
+const WorkspaceClient = dynamic(
+  () => import("./scenes/[sceneId]/loops/[loopId]/WorkspaceClient").then((mod) => mod.WorkspaceClient),
+  { ssr: false }
+);
 
 export interface KeyTerm {
   id: string;
@@ -88,6 +101,37 @@ export function ProjectClient({
 }: ProjectClientProps) {
   // State
   const [localScenes, setLocalScenes] = useState<Scene[]>(scenes);
+  const router = useRouter();
+
+  // Modal states
+  const [activeLoopIdForModal, setActiveLoopIdForModal] = useState<string | null>(null);
+  const [modalLoopData, setModalLoopData] = useState<{
+    loop: unknown;
+    existingRecordingUrl: string | null;
+  } | null>(null);
+  const [isModalLoading, setIsModalLoading] = useState(false);
+
+  const handleOpenRecordModal = async (loopId: string, sceneId: string) => {
+    setActiveLoopIdForModal(loopId);
+    setIsModalLoading(true);
+    setModalLoopData(null);
+    try {
+      const data = await getLoopWorkspaceData(project.id, sceneId, loopId);
+      setModalLoopData(data);
+    } catch (err) {
+      console.error(err);
+      alert("Gagal memuat data loop: " + (err instanceof Error ? err.message : err));
+      setActiveLoopIdForModal(null);
+    } finally {
+      setIsModalLoading(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setActiveLoopIdForModal(null);
+    setModalLoopData(null);
+    router.refresh();
+  };
   const [activeTab, setActiveTab] = useState<
     "draft" | "keyTerms" | "backTranslate" | "consult"
   >("draft");
@@ -760,6 +804,7 @@ export function ProjectClient({
                   activeAudioUrl={activeAudioUrl}
                   setActiveAudioUrl={setActiveAudioUrl}
                   handleSaveTranslation={handleSaveTranslation}
+                  onOpenRecordModal={handleOpenRecordModal}
                 />
               )}
 
@@ -791,6 +836,46 @@ export function ProjectClient({
           <span>S/R Status</span>
         </div>
       </footer>
+
+      {/* Loop Workspace Modal Dialog */}
+      <Dialog open={!!activeLoopIdForModal} onOpenChange={(open) => { if (!open) handleCloseModal(); }}>
+        <DialogContent style={{ width: "90vw", maxWidth: "90vw", height: "90vh", maxHeight: "90vh" }} className="p-0 overflow-hidden flex flex-col bg-background text-foreground border border-border">
+          <DialogTitle className="sr-only">Loop Workspace</DialogTitle>
+          {isModalLoading && (
+            <div className="flex-1 flex items-center justify-center bg-background/80">
+              <span className="text-sm font-semibold animate-pulse text-muted-foreground">Memuat Workspace...</span>
+            </div>
+          )}
+          {!isModalLoading && modalLoopData && (() => {
+            const projectWithScripts = {
+              ...project,
+              templates: project.templates ? {
+                ...project.templates,
+                audio_sources: project.templates.audio_sources?.map((source, index) => {
+                  const loopObj = modalLoopData.loop as Record<string, unknown>;
+                  const scriptField = `script_text_${index + 1}`;
+                  return {
+                    ...source,
+                    script_text: loopObj?.[scriptField] || null,
+                  };
+                }) || [],
+              } : null,
+            };
+
+            return (
+              <div className="flex-1 overflow-hidden relative">
+                <WorkspaceClient
+                  project={projectWithScripts as unknown as import("@/types").Project}
+                  loop={modalLoopData.loop as unknown as import("@/types").Loop}
+                  existingRecordingUrl={modalLoopData.existingRecordingUrl}
+                  isModal={true}
+                  onClose={handleCloseModal}
+                />
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

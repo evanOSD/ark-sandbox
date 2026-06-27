@@ -56,6 +56,8 @@ export interface AudioEditorState {
   activeLoopDurationMs: number;
 
   // Recording actions
+  setRecordedBlob: (blob: Blob | null) => void;
+  setRecordedUrl: (url: string | null) => void;
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<void>;
   pauseRecording: () => void;

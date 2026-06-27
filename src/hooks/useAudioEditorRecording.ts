@@ -5,6 +5,12 @@ import TimelinePlugin from "wavesurfer.js/dist/plugins/timeline.js";
 import RecordPlugin from "wavesurfer.js/dist/plugins/record.js";
 import HoverPlugin from "wavesurfer.js/dist/plugins/hover.js";
 import { WavRecorder } from "@/lib/wav-recorder";
+
+interface WaveSurferWithRenderer {
+  renderer: {
+    renderProgress(progress: number, isPlaying?: boolean): void;
+  };
+}
 import {
   saveLocalRecording,
   getLocalRecording,
@@ -75,32 +81,74 @@ export function useAudioEditorRecording({
     const totalElapsedMs = recordingAccumulatedTimeMsRef.current + elapsedSinceLastStart;
     const totalMs = punchInTimeMsRef.current + totalElapsedMs;
 
-    setRecordingTimeMs(totalMs);
-    setRecordingProgressTimeMs(replaceEndTimeMsRef.current !== null ? totalElapsedMs : totalMs);
+    const maxDurS = Math.max(
+      0.1,
+      (loopBoundary.end_time_ms - loopBoundary.start_time_ms) / 1000,
+    );
 
+    const activeLoopDurationMsVal = (replaceEndTimeMsRef.current !== null)
+      ? (replaceEndTimeMsRef.current - punchInTimeMsRef.current)
+      : (loopBoundary.end_time_ms - loopBoundary.start_time_ms);
+
+    const progressTimeMs = replaceEndTimeMsRef.current !== null ? totalElapsedMs : totalMs;
+
+    // 1. Update WaveSurfer progress canvas directly
     if (recWavesurfer.current) {
-      recWavesurfer.current.setTime(totalMs / 1000);
+      const progress = (totalMs / 1000) / maxDurS;
+      ((recWavesurfer.current as unknown) as WaveSurferWithRenderer).renderer.renderProgress(progress);
+    }
+
+    // 2. Update cursor overlay DOM directly
+    const cursorIndicator = document.querySelector('[data-rec-cursor-indicator]') as HTMLDivElement | null;
+    if (cursorIndicator) {
+      const progress = (totalMs / 1000) / maxDurS;
+      cursorIndicator.style.left = `calc(12px + (100% - 24px) * ${progress})`;
+      cursorIndicator.textContent = `${(totalMs / 1000).toFixed(2)}s`;
+    }
+
+    // 3. Update timer DOM directly
+    const timer = document.querySelector('[data-rec-timer]') as HTMLDivElement | null;
+    if (timer) {
+      timer.textContent = `${(progressTimeMs / 1000).toFixed(2)}s / ${(activeLoopDurationMsVal / 1000).toFixed(2)}s`;
     }
 
     if (replaceEndTimeMsRef.current !== null && totalMs >= replaceEndTimeMsRef.current) {
-      // Force exact end values
+      // Force exact end values in DOM
+      if (recWavesurfer.current) {
+        ((recWavesurfer.current as unknown) as WaveSurferWithRenderer).renderer.renderProgress((replaceEndTimeMsRef.current / 1000) / maxDurS);
+      }
+      if (cursorIndicator) {
+        const progress = (replaceEndTimeMsRef.current / 1000) / maxDurS;
+        cursorIndicator.style.left = `calc(12px + (100% - 24px) * ${progress})`;
+        cursorIndicator.textContent = `${(replaceEndTimeMsRef.current / 1000).toFixed(2)}s`;
+      }
+      if (timer) {
+        const maxProgressTimeMs = replaceEndTimeMsRef.current - punchInTimeMsRef.current;
+        timer.textContent = `${(maxProgressTimeMs / 1000).toFixed(2)}s / ${(activeLoopDurationMsVal / 1000).toFixed(2)}s`;
+      }
+
       setRecordingTimeMs(replaceEndTimeMsRef.current);
       setRecordingProgressTimeMs(replaceEndTimeMsRef.current - punchInTimeMsRef.current);
-      if (recWavesurfer.current) {
-        recWavesurfer.current.setTime(replaceEndTimeMsRef.current / 1000);
-      }
       stopRecordingRef.current();
       return;
     }
 
     const maxDurMs = loopBoundary.end_time_ms - loopBoundary.start_time_ms;
     if (maxDurMs > 0 && totalMs >= maxDurMs) {
-      // Force exact end values
+      // Force exact end values in DOM
+      if (recWavesurfer.current) {
+        ((recWavesurfer.current as unknown) as WaveSurferWithRenderer).renderer.renderProgress(1);
+      }
+      if (cursorIndicator) {
+        cursorIndicator.style.left = `calc(12px + (100% - 24px) * 1)`;
+        cursorIndicator.textContent = `${(maxDurMs / 1000).toFixed(2)}s`;
+      }
+      if (timer) {
+        timer.textContent = `${(maxDurMs / 1000).toFixed(2)}s / ${(activeLoopDurationMsVal / 1000).toFixed(2)}s`;
+      }
+
       setRecordingTimeMs(maxDurMs);
       setRecordingProgressTimeMs(maxDurMs);
-      if (recWavesurfer.current) {
-        recWavesurfer.current.setTime(maxDurMs / 1000);
-      }
       stopRecordingRef.current();
       return;
     }
@@ -252,11 +300,46 @@ export function useAudioEditorRecording({
     }
   }, [recordedUrl, isRecording, loopBoundary.end_time_ms, loopBoundary.start_time_ms]);
 
+  // Draw red region if recording exceeds template loop duration
+  useEffect(() => {
+    const ws = recWavesurfer.current;
+    const regions = recRegionsPlugin.current;
+    if (!ws || !regions) return;
+
+    // Clear existing over-duration regions first
+    const allRegions = regions.getRegions();
+    allRegions.forEach((r: Region) => {
+      if (r.id === "over-duration-region") {
+        r.remove();
+      }
+    });
+
+    const maxDurS = (loopBoundary.end_time_ms - loopBoundary.start_time_ms) / 1000;
+    if (recordedDuration > maxDurS) {
+      regions.addRegion({
+        id: "over-duration-region",
+        start: maxDurS,
+        end: recordedDuration,
+        color: "rgba(255, 0, 0, 0.25)",
+        drag: false,
+        resize: false,
+      });
+    }
+  }, [recordedDuration, loopBoundary.end_time_ms, loopBoundary.start_time_ms]);
+
   const stopRecording = async () => {
     if (recordingTimeoutRef.current) {
       clearTimeout(recordingTimeoutRef.current);
       recordingTimeoutRef.current = null;
     }
+
+    const now = performance.now();
+    const elapsedSinceLastStart = isPausedRef.current ? 0 : (now - recordingStartTimeMsRef.current);
+    const totalElapsedMs = recordingAccumulatedTimeMsRef.current + elapsedSinceLastStart;
+    const totalMs = punchInTimeMsRef.current + totalElapsedMs;
+
+    setRecordingTimeMs(totalMs);
+    setRecordingProgressTimeMs(replaceEndTimeMsRef.current !== null ? totalElapsedMs : totalMs);
 
     if (recordPluginRef.current?.isRecording()) {
       try {
@@ -312,6 +395,15 @@ export function useAudioEditorRecording({
     if (recorder) {
       recorder.pause();
     }
+
+    const now = performance.now();
+    const elapsedSinceLastStart = now - recordingStartTimeMsRef.current;
+    const totalElapsedMs = recordingAccumulatedTimeMsRef.current + elapsedSinceLastStart;
+    const totalMs = punchInTimeMsRef.current + totalElapsedMs;
+
+    setRecordingTimeMs(totalMs);
+    setRecordingProgressTimeMs(replaceEndTimeMsRef.current !== null ? totalElapsedMs : totalMs);
+
     setIsPaused(true);
     isPausedRef.current = true;
 
@@ -319,7 +411,7 @@ export function useAudioEditorRecording({
       cancelAnimationFrame(animationFrameIdRef.current);
       animationFrameIdRef.current = null;
     }
-    recordingAccumulatedTimeMsRef.current += performance.now() - recordingStartTimeMsRef.current;
+    recordingAccumulatedTimeMsRef.current += elapsedSinceLastStart;
   };
 
   const resumeRecording = () => {
@@ -394,7 +486,9 @@ export function useAudioEditorRecording({
       recorderRef.current = recorder;
       setRecorderInstance(recorder);
 
-      await recordPluginRef.current.startRecording();
+      // recordPluginRef.current.startRecording() is commented out to prevent WaveSurfer from clearing the existing waveform.
+      // Waveform context is preserved for the user during replace/record.
+      // await recordPluginRef.current.startRecording();
 
       setIsRecording(true);
       isRecordingRef.current = true;

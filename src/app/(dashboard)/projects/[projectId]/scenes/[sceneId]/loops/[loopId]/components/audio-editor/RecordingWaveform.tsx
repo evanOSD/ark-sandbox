@@ -35,6 +35,7 @@ export function RecordingWaveform({
           positioned relative to the outer wrapper so it visually overlays
           the waveform without living inside the WaveSurfer DOM. */}
       <div
+        data-rec-cursor-indicator
         className="absolute -translate-x-1/2 bg-black text-white text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm z-10 pointer-events-none transition-all duration-75"
         style={{
           top: "12px",

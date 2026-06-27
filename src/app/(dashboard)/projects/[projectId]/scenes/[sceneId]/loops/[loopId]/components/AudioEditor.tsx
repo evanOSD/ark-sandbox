@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { BookOpen, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Project, Loop } from "../WorkspaceClient";
+import { LineRecordingModal } from "./audio-editor/LineRecordingModal";
 import { AudioSourceTabs } from "./audio-editor/AudioSourceTabs";
 import { AudioSettingsPopover } from "./audio-editor/AudioSettingsPopover";
 import { ScriptDisplay } from "./audio-editor/ScriptDisplay";
@@ -45,6 +46,34 @@ export default function AudioEditor({
 }: AudioEditorProps) {
   // ── Hooks ──────────────────────────────────────────────────────────────────
   const audioSettings = useAudioSettings();
+  const [isLineRecordingModalOpen, setIsLineRecordingModalOpen] = useState(false);
+
+  const handleSaveLine = async (lineBlob: Blob) => {
+    let oldBlob = editor.recordedBlob;
+    if (!oldBlob && existingRecordingUrl) {
+      try {
+        const res = await fetch(existingRecordingUrl);
+        if (res.ok) {
+          oldBlob = await res.blob();
+        }
+      } catch (err) {
+        console.error("Gagal mengambil rekaman lama:", err);
+      }
+    }
+
+    let mergedBlob = lineBlob;
+    if (oldBlob) {
+      const { appendAudioBlobs } = await import("@/lib/audio-utils");
+      mergedBlob = await appendAudioBlobs(oldBlob, lineBlob);
+    }
+
+    editor.setRecordedBlob(mergedBlob);
+    const url = URL.createObjectURL(mergedBlob);
+    editor.setRecordedUrl(url);
+
+    const { saveLocalRecording } = await import("@/lib/indexeddb");
+    await saveLocalRecording(project.id, loop.id, mergedBlob);
+  };
 
   const { isUploading, uploadStep, handleUploadRecording } = useCloudinaryUpload({
     projectId: project.id,
@@ -88,6 +117,8 @@ export default function AudioEditor({
   // ── Derived values ─────────────────────────────────────────────────────────
   const isUnsavedLocal = editor.recordedBlob !== null;
   const loopDurationMs = loop.end_time_ms - loop.start_time_ms;
+  const overDurationMs = (editor.recordedDuration * 1000) - loopDurationMs;
+  const isOverDuration = overDurationMs > 0;
 
   const audioSources = useMemo(
     () => project.templates.audio_sources || [],
@@ -168,6 +199,15 @@ export default function AudioEditor({
             sourceName={audioSources[editor.activeTabIdx]?.name || "Default"}
           />
 
+          {isOverDuration && (
+            <div className="mx-4 my-2 p-2 bg-red-950/30 border border-red-900/40 rounded-lg text-xs text-red-400 font-semibold flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+              <span>
+                Rekaman Anda lebih panjang {(overDurationMs / 1000).toFixed(2)} detik dari Audio Referensi.
+              </span>
+            </div>
+          )}
+
           {/* Waveforms */}
           <div className="space-y-2">
             <ReferenceWaveform
@@ -205,7 +245,7 @@ export default function AudioEditor({
               loopDurationMs={editor.activeLoopDurationMs}
               isUploading={isUploading}
               recordedDuration={editor.recordedDuration}
-              onStartRecording={editor.startRecording}
+              onStartRecording={() => setIsLineRecordingModalOpen(true)}
               onPauseRecording={editor.pauseRecording}
               onResumeRecording={editor.resumeRecording}
               onStopRecording={editor.stopRecording}
@@ -219,6 +259,13 @@ export default function AudioEditor({
         {/* Footer area */}
         <div className="p-5 space-y-2 flex-1 overflow-y-auto"></div>
       </div>
+
+      <LineRecordingModal
+        isOpen={isLineRecordingModalOpen}
+        onClose={() => setIsLineRecordingModalOpen(false)}
+        onSave={handleSaveLine}
+        durationMs={loopDurationMs}
+      />
     </div>
   );
 }

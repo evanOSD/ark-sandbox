@@ -5,7 +5,6 @@ import {
   Play,
   Scissors,
   Square,
-  Trash,
   Trash2,
   Save,
   Volume2,
@@ -132,18 +131,6 @@ export function RecordingControls({
           type="button"
           variant="outline"
           size="icon"
-          title="Hapus Seleksi"
-          onClick={onDeleteSelection}
-          disabled={!selectedRegion || !recordedUrl}
-          className="h-8 w-8 text-rose-500 border-rose-950/40 hover:bg-rose-950/20 hover:text-rose-400 disabled:opacity-50"
-        >
-          <Trash className="w-4 h-4" />
-        </Button>
-
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
           title="Normalize (-6dB)"
           onClick={onNormalize}
           disabled={!recordedUrl}
@@ -158,7 +145,13 @@ export function RecordingControls({
             variant="outline"
             size="icon"
             title="Hapus Semua"
-            onClick={onDiscardRecording}
+            onClick={() => {
+              if (selectedRegion) {
+                onDeleteSelection();
+              } else {
+                onDiscardRecording();
+              }
+            }}
             className="h-8 w-8 bg-red-600 text-black hover:bg-red-500 hover:text-black border-none transition-colors"
           >
             <Trash2 className="w-4 h-4" />
@@ -232,7 +225,10 @@ function RecordingActiveControls({
   return (
     <div className="flex items-center gap-3">
       {/* Timer */}
-      <div className="text-xs font-mono font-bold text-red-400">
+      <div
+        data-rec-timer
+        className="text-xs font-mono font-bold text-red-400"
+      >
         {(recordingTimeMs / 1000).toFixed(2)}s / {loopDurationS.toFixed(2)}s
       </div>
 

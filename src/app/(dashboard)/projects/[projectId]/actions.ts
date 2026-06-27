@@ -134,3 +134,106 @@ export async function saveTranslationText(projectId: string, loopId: string, tex
 
   revalidatePath(`/projects/${projectId}`)
 }
+
+export async function getLoopWorkspaceData(projectId: string, sceneId: string, loopId: string) {
+  const supabase = await createClient()
+
+  // Fetch loop details belonging to this scene
+  const { data: loop, error: loopError } = await supabase
+    .from('template_loops')
+    .select('id, name, sequence_number, start_time_ms, end_time_ms, script_text_1, script_text_2, script_text_3, script_text_4')
+    .eq('id', loopId)
+    .eq('scene_id', sceneId)
+    .maybeSingle()
+
+  if (loopError || !loop) {
+    throw new Error(loopError?.message || 'Loop tidak ditemukan')
+  }
+
+  // Fetch key terms for this loop
+  const { data: loopKeyTerms } = await supabase
+    .from('loop_key_terms')
+    .select('key_terms(id, term, original_word, meaning_or_note)')
+    .eq('template_loop_id', loopId)
+
+  interface DBKeyTerm {
+    id: string;
+    term: string;
+    original_word: string | null;
+    meaning_or_note: string | null;
+  }
+
+  interface DBLoopKeyTerm {
+    key_terms: DBKeyTerm | null;
+  }
+
+  interface DBTranslation {
+    key_term_id: string;
+    id: string;
+    translated_text: string | null;
+    recorded_audio_url: string | null;
+  }
+
+  const rawLoopKeyTerms = (loopKeyTerms || []) as unknown as DBLoopKeyTerm[]
+  const keyTermIds = rawLoopKeyTerms.map((lkt) => lkt.key_terms?.id).filter(Boolean) as string[]
+
+  // Fetch existing translations for these key terms in this project
+  let translations: DBTranslation[] = []
+  if (keyTermIds.length > 0) {
+    const { data: transData } = await supabase
+      .from('project_key_term_translations')
+      .select('key_term_id, id, translated_text, recorded_audio_url')
+      .eq('project_id', projectId)
+      .in('key_term_id', keyTermIds)
+    translations = (transData || []) as unknown as DBTranslation[]
+  }
+
+  // Map key terms together with their translations
+  const formattedKeyTerms = rawLoopKeyTerms
+    .map((lkt) => {
+      const term = lkt.key_terms
+      if (!term) return null
+
+      const trans = translations.find((t) => t.key_term_id === term.id)
+      return {
+        id: term.id,
+        term: term.term,
+        original_word: term.original_word,
+        meaning_or_note: term.meaning_or_note,
+        translation: trans
+          ? {
+              id: trans.id,
+              translated_text: trans.translated_text,
+              recorded_audio_url: trans.recorded_audio_url,
+            }
+          : null,
+      }
+    })
+    .filter(Boolean)
+
+  // Fetch existing main recording for this loop in this project
+  const { data: recording } = await supabase
+    .from('recordings')
+    .select('recorded_audio_url, translated_text')
+    .eq('project_id', projectId)
+    .eq('template_loop_id', loopId)
+    .maybeSingle()
+
+  const formattedLoop = {
+    id: loop.id,
+    name: loop.name,
+    sequence_number: loop.sequence_number,
+    start_time_ms: loop.start_time_ms,
+    end_time_ms: loop.end_time_ms,
+    script_text_1: loop.script_text_1,
+    script_text_2: loop.script_text_2,
+    script_text_3: loop.script_text_3,
+    script_text_4: loop.script_text_4,
+    key_terms: formattedKeyTerms,
+  }
+
+  return {
+    loop: formattedLoop,
+    existingRecordingUrl: recording?.recorded_audio_url || null,
+  }
+}

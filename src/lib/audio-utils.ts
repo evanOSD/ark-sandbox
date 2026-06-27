@@ -198,3 +198,92 @@ export async function loadAndPadAudio(
     }
   }
 }
+
+export async function sliceAudioBlob(
+  blob: Blob,
+  startSec: number,
+  endSec: number,
+): Promise<Blob> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const AudioContextClass =
+    window.AudioContext ||
+    (
+      window as Window &
+        typeof globalThis & { webkitAudioContext?: typeof AudioContext }
+    ).webkitAudioContext;
+  const audioCtx = new AudioContextClass({ sampleRate: 48000 });
+  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+  const sampleRate = audioBuffer.sampleRate;
+  const startSample = Math.floor(startSec * sampleRate);
+  const endSample = Math.min(
+    Math.floor(endSec * sampleRate),
+    audioBuffer.length,
+  );
+
+  const expectedSamples = endSample - startSample;
+  if (expectedSamples <= 0) {
+    await audioCtx.close();
+    return new Blob([], { type: "audio/wav" });
+  }
+
+  const channelData = audioBuffer.getChannelData(0);
+  const slicedData = new Float32Array(expectedSamples);
+  slicedData.set(channelData.subarray(startSample, endSample));
+
+  const wavBlob = encodeWav24Bit(slicedData, sampleRate);
+  await audioCtx.close();
+  return wavBlob;
+}
+
+export async function appendAudioBlobs(
+  oldBlob: Blob,
+  newBlob: Blob,
+): Promise<Blob> {
+  const oldBuffer = await oldBlob.arrayBuffer();
+  const newBuffer = await newBlob.arrayBuffer();
+
+  const AudioContextClass =
+    window.AudioContext ||
+    (
+      window as Window &
+        typeof globalThis & { webkitAudioContext?: typeof AudioContext }
+    ).webkitAudioContext;
+  const audioCtx = new AudioContextClass({ sampleRate: 48000 });
+
+  const oldDecoded = await audioCtx.decodeAudioData(oldBuffer);
+  const newDecoded = await audioCtx.decodeAudioData(newBuffer);
+
+  const sampleRate = 48000;
+  const totalSamples = oldDecoded.length + newDecoded.length;
+
+  const OfflineAudioContextClass =
+    window.OfflineAudioContext ||
+    (
+      window as Window &
+        typeof globalThis & {
+          webkitOfflineAudioContext?: typeof OfflineAudioContext;
+        }
+    ).webkitOfflineAudioContext;
+  if (!OfflineAudioContextClass) {
+    throw new Error("OfflineAudioContext tidak didukung di browser ini.");
+  }
+  const offlineCtx = new OfflineAudioContextClass(1, totalSamples, sampleRate);
+
+  const oldSource = offlineCtx.createBufferSource();
+  oldSource.buffer = oldDecoded;
+  oldSource.connect(offlineCtx.destination);
+  oldSource.start(0);
+
+  const newSource = offlineCtx.createBufferSource();
+  newSource.buffer = newDecoded;
+  newSource.connect(offlineCtx.destination);
+  newSource.start(oldDecoded.length / sampleRate);
+
+  const renderedBuffer = await offlineCtx.startRendering();
+  const channelData = renderedBuffer.getChannelData(0);
+  const wavBlob = encodeWav24Bit(channelData, sampleRate);
+
+  await audioCtx.close();
+  return wavBlob;
+}

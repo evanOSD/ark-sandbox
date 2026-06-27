@@ -216,7 +216,7 @@ export function TemplateClient({ template, projects }: TemplateClientProps) {
         <CardHeader className="py-4">
           <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
             <Folder className="h-4 w-4 text-primary" /> Daftar Project yang
-            Menggunakan Template Ini
+            Menggunakan Template Ini ({projects?.length || 0})
           </CardTitle>
         </CardHeader>
         <CardContent className="text-xs text-muted-foreground py-0 pb-4">

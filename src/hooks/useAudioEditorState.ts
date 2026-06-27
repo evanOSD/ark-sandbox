@@ -77,6 +77,8 @@ export function useAudioEditorState({
     recordingTimeMs: rec.recordingTimeMs,
     recordingProgressTimeMs: rec.recordingProgressTimeMs,
     activeLoopDurationMs: rec.activeLoopDurationMs,
+    setRecordedBlob: rec.setRecordedBlob,
+    setRecordedUrl: rec.setRecordedUrl,
     startRecording: rec.startRecording,
     stopRecording: rec.stopRecording,
     pauseRecording: rec.pauseRecording,

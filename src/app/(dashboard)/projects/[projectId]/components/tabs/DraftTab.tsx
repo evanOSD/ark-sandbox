@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Play, Square, CheckCircle2, AlertCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -25,6 +24,7 @@ interface DraftTabProps {
   activeAudioUrl: string;
   setActiveAudioUrl: (url: string) => void;
   handleSaveTranslation: (loopId: string, text: string) => void;
+  onOpenRecordModal: (loopId: string, sceneId: string) => void;
 }
 
 export function DraftTab({
@@ -42,6 +42,7 @@ export function DraftTab({
   activeAudioUrl,
   setActiveAudioUrl,
   handleSaveTranslation,
+  onOpenRecordModal,
 }: DraftTabProps) {
   const audioSources = project.templates?.audio_sources || [];
 
@@ -122,15 +123,14 @@ export function DraftTab({
               <div className="flex flex-col gap-2 pl-4 justify-center">
                 <div className="flex items-center gap-3 w-full">
                   {/* Red Record Button */}
-                  <Link href={`/projects/${project.id}/scenes/${activeScene.id}/loops/${loop.id}`} className="shrink-0">
-                    <button
-                      type="button"
-                      className="h-6 w-6 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group"
-                      title="Rekam Loop"
-                    >
-                      <span className="w-2 h-2 rounded-full bg-white group-hover:scale-110 transition-transform" />
-                    </button>
-                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => onOpenRecordModal(loop.id, activeScene.id)}
+                    className="h-6 w-6 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group shrink-0"
+                    title="Rekam Loop"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-white group-hover:scale-110 transition-transform" />
+                  </button>
 
                   {/* Translation Text Input */}
                   <input

@@ -6,47 +6,9 @@ import { MediaPlayer, MediaPlayerRef } from "./components/MediaPlayer";
 import { VoiceRecorder } from "./components/VoiceRecorder";
 import { KeyTermsPanel } from "./components/KeyTermsPanel";
 
-export interface KeyTerm {
-  id: string;
-  term: string;
-  original_word: string | null;
-  meaning_or_note: string | null;
-  translation?: {
-    id: string;
-    translated_text: string | null;
-    recorded_audio_url: string | null;
-  } | null;
-}
+import { KeyTerm, Loop, Template, Project, WorkspaceClientProps } from "@/types";
 
-export interface Loop {
-  id: string;
-  name: string;
-  sequence_number: number;
-  start_time_ms: number;
-  end_time_ms: number;
-  key_terms: KeyTerm[];
-}
-
-export interface Template {
-  id: string;
-  video_url: string | null;
-  audio_url: string | null;
-  audio_sources?: Array<{ name: string; url: string }> | null;
-  mne_audio_url?: string | null;
-}
-
-export interface Project {
-  id: string;
-  name: string;
-  template_id: string;
-  templates: Template;
-}
-
-interface WorkspaceClientProps {
-  project: Project;
-  loop: Loop;
-  existingRecordingUrl: string | null;
-}
+export type { KeyTerm, Loop, Template, Project, WorkspaceClientProps };
 
 export function WorkspaceClient({
   project,
