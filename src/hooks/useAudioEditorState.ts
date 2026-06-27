@@ -74,6 +74,7 @@ export function useAudioEditorState({
     selectedRegion: rec.selectedRegion,
     recCursorTime: rec.recCursorTime,
     recordedDuration: rec.recordedDuration,
+    actualRecordedDuration: rec.actualRecordedDuration,
     recordingTimeMs: rec.recordingTimeMs,
     recordingProgressTimeMs: rec.recordingProgressTimeMs,
     activeLoopDurationMs: rec.activeLoopDurationMs,

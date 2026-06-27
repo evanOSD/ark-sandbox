@@ -851,8 +851,8 @@ export function ProjectClient({
           style={{
             width: "1000px",
             maxWidth: "1000px",
-            height: "425px",
-            maxHeight: "425px",
+            height: "460px",
+            maxHeight: "460px",
           }}
           className="p-0 overflow-hidden flex flex-col bg-background text-foreground border border-border"
         >

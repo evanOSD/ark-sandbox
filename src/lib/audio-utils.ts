@@ -171,7 +171,8 @@ export async function loadAndPadAudio(
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
     const sampleRate = audioBuffer.sampleRate;
-    const expectedSamples = Math.round(targetDurationSeconds * sampleRate);
+    const actualDuration = Math.max(targetDurationSeconds, audioBuffer.duration);
+    const expectedSamples = Math.round(actualDuration * sampleRate);
     const paddedData = new Float32Array(expectedSamples);
 
     const channelData = audioBuffer.getChannelData(0);

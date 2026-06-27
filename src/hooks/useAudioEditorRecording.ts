@@ -53,6 +53,67 @@ export function useAudioEditorRecording({
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
   const [recCursorTime, setRecCursorTime] = useState(0);
   const [recordedDuration, setRecordedDuration] = useState(0);
+  const [actualRecordedDuration, setActualRecordedDuration] = useState<number>(0);
+  const actualRecordedDurationRef = useRef(0);
+
+  useEffect(() => {
+    actualRecordedDurationRef.current = actualRecordedDuration;
+  }, [actualRecordedDuration]);
+
+  // Decode the raw/unpadded recorded audio to find its true/actual duration
+  useEffect(() => {
+    let active = true;
+    async function calculateDuration() {
+      if (recordedBlob) {
+        try {
+          const arrayBuffer = await recordedBlob.arrayBuffer();
+          const AudioContextClass =
+            window.AudioContext ||
+            (
+              window as Window &
+                typeof globalThis & { webkitAudioContext?: typeof AudioContext }
+            ).webkitAudioContext;
+          const audioCtx = new AudioContextClass();
+          const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+          if (active) {
+            setActualRecordedDuration(audioBuffer.duration);
+          }
+          await audioCtx.close();
+        } catch (err) {
+          console.error("Gagal men-decode recordedBlob untuk durasi:", err);
+        }
+      } else if (recordedUrl) {
+        try {
+          const res = await fetch(recordedUrl);
+          if (res.ok) {
+            const arrayBuffer = await res.arrayBuffer();
+            const AudioContextClass =
+              window.AudioContext ||
+              (
+                window as Window &
+                  typeof globalThis & { webkitAudioContext?: typeof AudioContext }
+              ).webkitAudioContext;
+            const audioCtx = new AudioContextClass();
+            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+            if (active) {
+              setActualRecordedDuration(audioBuffer.duration);
+            }
+            await audioCtx.close();
+          }
+        } catch (err) {
+          console.error("Gagal mengambil/men-decode recordedUrl untuk durasi:", err);
+        }
+      } else {
+        if (active) {
+          setActualRecordedDuration(0);
+        }
+      }
+    }
+    calculateDuration();
+    return () => {
+      active = false;
+    };
+  }, [recordedBlob, recordedUrl]);
 
   const recorderRef = useRef<WavRecorder | null>(null);
   const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -263,7 +324,15 @@ export function useAudioEditorRecording({
 
     ws.on("play", () => setIsRecPlaying(true));
     ws.on("pause", () => setIsRecPlaying(false));
-    ws.on("timeupdate", (currentTime: unknown) => setRecCursorTime(Number(currentTime)));
+    ws.on("timeupdate", (currentTime: unknown) => {
+      const time = Number(currentTime);
+      setRecCursorTime(time);
+      const actualDur = actualRecordedDurationRef.current;
+      if (ws.isPlaying() && actualDur > 0 && time >= actualDur) {
+        ws.pause();
+        ws.setTime(actualDur);
+      }
+    });
     ws.on("seeking", (currentTime: unknown) => setRecCursorTime(Number(currentTime)));
     ws.on("decode", (duration) => setRecordedDuration(duration));
     ws.on("error", (err: Error) => {
@@ -577,6 +646,7 @@ export function useAudioEditorRecording({
     selectedRegion,
     recCursorTime,
     recordedDuration,
+    actualRecordedDuration,
     recordingTimeMs,
     recordingProgressTimeMs,
     activeLoopDurationMs,

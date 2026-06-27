@@ -52,8 +52,7 @@ export default function AudioEditor({
 }: AudioEditorProps) {
   // ── Hooks ──────────────────────────────────────────────────────────────────
   const audioSettings = useAudioSettings();
-  const [isLineRecordingModalOpen, setIsLineRecordingModalOpen] =
-    useState(false);
+  const [recordingMode, setRecordingMode] = useState<"append" | "replace" | null>(null);
   const [portalTarget, setPortalTarget] = useState<Element | null>(null);
 
   useEffect(() => {
@@ -67,22 +66,26 @@ export default function AudioEditor({
   }, []);
 
   const handleSaveLine = async (lineBlob: Blob) => {
-    let oldBlob = editor.recordedBlob;
-    if (!oldBlob && existingRecordingUrl) {
-      try {
-        const res = await fetch(existingRecordingUrl);
-        if (res.ok) {
-          oldBlob = await res.blob();
-        }
-      } catch (err) {
-        console.error("Gagal mengambil rekaman lama:", err);
-      }
-    }
-
     let mergedBlob = lineBlob;
-    if (oldBlob) {
-      const { appendAudioBlobs } = await import("@/lib/audio-utils");
-      mergedBlob = await appendAudioBlobs(oldBlob, lineBlob);
+
+    if (recordingMode === "append") {
+      let oldBlob = editor.recordedBlob;
+      // Only fetch existingRecordingUrl if editor.recordedUrl is NOT null (not discarded)
+      if (!oldBlob && editor.recordedUrl && existingRecordingUrl) {
+        try {
+          const res = await fetch(existingRecordingUrl);
+          if (res.ok) {
+            oldBlob = await res.blob();
+          }
+        } catch (err) {
+          console.error("Gagal mengambil rekaman lama:", err);
+        }
+      }
+
+      if (oldBlob) {
+        const { appendAudioBlobs } = await import("@/lib/audio-utils");
+        mergedBlob = await appendAudioBlobs(oldBlob, lineBlob);
+      }
     }
 
     editor.setRecordedBlob(mergedBlob);
@@ -91,6 +94,8 @@ export default function AudioEditor({
 
     const { saveLocalRecording } = await import("@/lib/indexeddb");
     await saveLocalRecording(project.id, loop.id, mergedBlob);
+
+    setRecordingMode(null);
   };
 
   const { isUploading, uploadStep, handleUploadRecording } =
@@ -134,10 +139,10 @@ export default function AudioEditor({
   }, [uploadStep, onUploadStatusChange]);
 
   // ── Derived values ─────────────────────────────────────────────────────────
-  const isUnsavedLocal = editor.recordedBlob !== null;
   const loopDurationMs = loop.end_time_ms - loop.start_time_ms;
-  const overDurationMs = editor.recordedDuration * 1000 - loopDurationMs;
-  const isOverDuration = overDurationMs > 0;
+  const isUnsavedLocal = editor.recordedBlob !== null;
+  const overDurationMs = editor.actualRecordedDuration * 1000 - loopDurationMs;
+  const isOverDuration = overDurationMs > 10; // 10ms tolerance
 
   /*
   const audioSources = useMemo(
@@ -262,6 +267,7 @@ export default function AudioEditor({
               recordingTimeMs={editor.recordingTimeMs}
               recCursorTime={editor.recCursorTime}
               loopDurationMs={loopDurationMs}
+              recordedDuration={editor.actualRecordedDuration}
             />
 
             {/* Edit + record controls */}
@@ -282,8 +288,8 @@ export default function AudioEditor({
               recordingTimeMs={editor.recordingProgressTimeMs}
               loopDurationMs={editor.activeLoopDurationMs}
               isUploading={isUploading}
-              recordedDuration={editor.recordedDuration}
-              onStartRecording={() => setIsLineRecordingModalOpen(true)}
+              recordedDuration={editor.actualRecordedDuration}
+              onStartRecording={(mode) => setRecordingMode(mode)}
               onPauseRecording={editor.pauseRecording}
               onResumeRecording={editor.resumeRecording}
               onStopRecording={editor.stopRecording}
@@ -299,8 +305,8 @@ export default function AudioEditor({
       </div>
 
       <LineRecordingModal
-        isOpen={isLineRecordingModalOpen}
-        onClose={() => setIsLineRecordingModalOpen(false)}
+        isOpen={!!recordingMode}
+        onClose={() => setRecordingMode(null)}
         onSave={handleSaveLine}
         durationMs={loopDurationMs}
       />

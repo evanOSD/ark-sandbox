@@ -34,10 +34,13 @@ export function useAudioEditorEdits({
     const sampleRate = buffer.sampleRate;
     const startIndex = Math.floor(selectedRegion.start * sampleRate);
     const endIndex = Math.floor(selectedRegion.end * sampleRate);
-    const channelData = buffer.getChannelData(0);
+    const trimLength = endIndex - startIndex;
 
-    const trimmedData = new Float32Array(channelData.length);
-    trimmedData.set(channelData.subarray(startIndex, endIndex), startIndex);
+    if (trimLength <= 0) return;
+
+    const channelData = buffer.getChannelData(0);
+    const trimmedData = new Float32Array(trimLength);
+    trimmedData.set(channelData.subarray(startIndex, endIndex), 0);
 
     const wavBlob = encodeWav24Bit(trimmedData, sampleRate);
     setRecordedBlob(wavBlob);
@@ -92,8 +95,9 @@ export function useAudioEditorEdits({
 
     const channelData = buffer.getChannelData(0);
     const totalLength = channelData.length;
+    const newLength = totalLength - deletedLength;
 
-    const stitchedData = new Float32Array(totalLength);
+    const stitchedData = new Float32Array(newLength);
     stitchedData.set(channelData.subarray(0, startIndex), 0);
     const shiftedPart = channelData.subarray(endIndex, totalLength);
     stitchedData.set(shiftedPart, startIndex);

@@ -51,6 +51,7 @@ export interface AudioEditorState {
   selectedRegion: Region | null;
   recCursorTime: number;
   recordedDuration: number;
+  actualRecordedDuration: number;
   recordingTimeMs: number;
   recordingProgressTimeMs: number;
   activeLoopDurationMs: number;

@@ -38,7 +38,7 @@ interface RecordingControlsProps {
   recordedDuration: number;
 
   // Recording actions
-  onStartRecording: () => void;
+  onStartRecording: (mode: "append" | "replace") => void;
   onPauseRecording: () => void;
   onResumeRecording: () => void;
   onStopRecording: () => void;
@@ -271,7 +271,7 @@ interface RecordingIdleControlsProps {
   isUploading: boolean;
   recordedDuration: number;
   loopDurationS: number;
-  onStart: () => void;
+  onStart: (mode: "append" | "replace") => void;
   onUpload: () => void;
 }
 
@@ -283,22 +283,36 @@ function RecordingIdleControls({
   onStart,
   onUpload,
 }: RecordingIdleControlsProps) {
+  const hasRecording = !!recordedUrl;
+
   return (
-    <div className="flex items-center gap-3">
-      {/* Record button */}
-      <button
+    <div className="flex items-center gap-2">
+      {/* Record / Append Button */}
+      <Button
         type="button"
-        className="h-8 w-8 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group disabled:opacity-50 disabled:pointer-events-none"
-        title="Mulai Rekam Baru"
-        onClick={onStart}
+        onClick={() => onStart("append")}
         disabled={isUploading}
+        variant="destructive"
+        className="h-8 text-xs font-bold gap-1.5 shadow-sm px-3 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
       >
-        <span className="w-3 h-3 rounded-full bg-white group-hover:scale-110 transition-transform" />
-      </button>
+        <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+        {hasRecording ? "Append" : "Record"}
+      </Button>
+
+      {/* Replace Button */}
+      <Button
+        type="button"
+        onClick={() => onStart("replace")}
+        disabled={isUploading || !hasRecording}
+        variant="outline"
+        className="h-8 text-xs font-bold gap-1 px-3 border-red-950/40 text-red-500 hover:bg-red-950/20 disabled:opacity-50 disabled:bg-transparent disabled:text-muted-foreground disabled:border-border hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer"
+      >
+        Replace
+      </Button>
 
       {/* Duration display */}
       {recordedUrl && (
-        <div className="text-xs font-mono font-bold text-emerald-500">
+        <div className="text-xs font-mono font-bold text-emerald-500 ml-1">
           {recordedDuration.toFixed(2)}s / {loopDurationS.toFixed(2)}s
         </div>
       )}
@@ -306,9 +320,9 @@ function RecordingIdleControls({
       {/* Upload button */}
       {recordedUrl && (
         <Button
-          className="h-8 text-xs font-bold gap-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-950 shadow-sm"
+          className="h-8 text-xs font-bold gap-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-950 shadow-sm ml-1 disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={onUpload}
-          disabled={isUploading}
+          disabled={isUploading || recordedDuration > loopDurationS + 0.01}
         >
           {isUploading ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
