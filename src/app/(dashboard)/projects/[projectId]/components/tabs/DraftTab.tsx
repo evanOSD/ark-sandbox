@@ -121,30 +121,42 @@ export function DraftTab({
 
               {/* Right Column: Record and Results/Input */}
               <div className="flex flex-col gap-2 pl-4 justify-center">
-                <div className="flex items-center gap-3 w-full">
+                <div className="flex items-start gap-3 w-full">
                   {/* Red Record Button */}
                   <button
                     type="button"
                     onClick={() => onOpenRecordModal(loop.id, activeScene.id)}
-                    className="h-6 w-6 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group shrink-0"
+                    className="h-6 w-6 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group shrink-0 mt-0.5"
                     title="Rekam Loop"
                   >
                     <span className="w-2 h-2 rounded-full bg-white group-hover:scale-110 transition-transform" />
                   </button>
 
                   {/* Translation Text Input */}
-                  <input
-                    type="text"
+                  <textarea
                     key={`trans-input-${loop.id}-${rec?.id || 'none'}`}
+                    ref={(el) => {
+                      if (el) {
+                        el.style.height = "auto";
+                        el.style.height = `${el.scrollHeight}px`;
+                      }
+                    }}
                     defaultValue={rec?.translated_text || ""}
                     placeholder="Empty"
+                    rows={1}
+                    onInput={(e) => {
+                      const el = e.currentTarget;
+                      el.style.height = "auto";
+                      el.style.height = `${el.scrollHeight}px`;
+                    }}
                     onBlur={(e) => handleSaveTranslation(loop.id, e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
                         e.currentTarget.blur();
                       }
                     }}
-                    className="flex-1 min-w-[80px] bg-muted border border-border rounded px-2.5 py-1 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:border-border focus:bg-background transition-colors"
+                    className="flex-1 min-w-[80px] bg-muted border border-border rounded px-2.5 py-1 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:border-border focus:bg-background transition-colors resize-none overflow-hidden leading-relaxed"
                   />
 
                   {/* User Audio Result if exists */}

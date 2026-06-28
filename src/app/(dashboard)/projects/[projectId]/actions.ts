@@ -135,6 +135,53 @@ export async function saveTranslationText(projectId: string, loopId: string, tex
   revalidatePath(`/projects/${projectId}`)
 }
 
+export async function saveBackTranslationText(projectId: string, loopId: string, text: string) {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Anda harus login terlebih dahulu')
+  }
+
+  // Cek apakah sudah ada rekaman untuk loop ini di project ini
+  const { data: existingRec } = await supabase
+    .from('recordings')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('template_loop_id', loopId)
+    .maybeSingle()
+
+  if (existingRec) {
+    // Update existing row
+    const { error } = await supabase
+      .from('recordings')
+      .update({
+        back_translation: text || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existingRec.id)
+
+    if (error) throw new Error(error.message)
+  } else {
+    // Insert new row
+    const { error } = await supabase.from('recordings').insert({
+      project_id: projectId,
+      template_loop_id: loopId,
+      back_translation: text || null,
+      recorded_by: user.id,
+      status: 'pending',
+    })
+
+    if (error) throw new Error(error.message)
+  }
+
+  revalidatePath(`/projects/${projectId}`)
+}
+
+
 export async function getLoopWorkspaceData(projectId: string, sceneId: string, loopId: string) {
   const supabase = await createClient()
 
@@ -235,5 +282,91 @@ export async function getLoopWorkspaceData(projectId: string, sceneId: string, l
   return {
     loop: formattedLoop,
     existingRecordingUrl: recording?.recorded_audio_url || null,
+  }
+}
+
+export async function getProjectFullExportData(projectId: string) {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Anda harus login terlebih dahulu')
+  }
+
+  // Get username
+  const { data: userRecord } = await supabase
+    .from('users')
+    .select('username')
+    .eq('id', user.id)
+    .maybeSingle()
+    
+  const username = userRecord?.username || 'Unknown User'
+
+  // Get project name and template_id
+  const { data: project } = await supabase
+    .from('projects')
+    .select('name, template_id')
+    .eq('id', projectId)
+    .single()
+
+  if (!project) {
+    throw new Error('Proyek tidak ditemukan')
+  }
+
+  // Get all scenes for the project template
+  const { data: scenesData } = await supabase
+    .from('template_scenes')
+    .select('id, name, sequence_number')
+    .eq('template_id', project.template_id)
+    .order('sequence_number', { ascending: true })
+
+  const scenes = scenesData || []
+
+  // Get all loops for these scenes
+  const { data: loopsData } = await supabase
+    .from('template_loops')
+    .select('id, scene_id, name, sequence_number')
+    .in('scene_id', scenes.length > 0 ? scenes.map(s => s.id) : [''])
+    .order('sequence_number', { ascending: true })
+
+  const loops = loopsData || []
+
+  // Get all recordings for this project
+  const { data: recordingsData } = await supabase
+    .from('recordings')
+    .select('template_loop_id, translated_text, back_translation')
+    .eq('project_id', projectId)
+
+  const recordings = recordingsData || []
+
+  // Construct structured data
+  const structuredScenes = scenes.map(scene => {
+    const sceneLoops = loops
+      .filter(loop => loop.scene_id === scene.id)
+      .map(loop => {
+        const recording = recordings.find(r => r.template_loop_id === loop.id)
+        return {
+          id: loop.id,
+          name: loop.name,
+          sequence_number: loop.sequence_number,
+          translated_text: recording?.translated_text || '',
+          back_translation: recording?.back_translation || '',
+        }
+      })
+    return {
+      id: scene.id,
+      name: scene.name,
+      sequence_number: scene.sequence_number,
+      loops: sceneLoops,
+    }
+  })
+
+  return {
+    projectName: project?.name || 'Unknown Project',
+    username,
+    scenes: structuredScenes,
   }
 }

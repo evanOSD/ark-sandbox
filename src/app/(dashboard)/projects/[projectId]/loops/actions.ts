@@ -5,6 +5,7 @@ import { createClient } from '@/utils/supabase/server'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
+import crypto from 'crypto'
 
 // Helper untuk menyimpan file audio lokal ke public/uploads
 async function saveAudioFileLocally(file: File, prefix: string): Promise<string> {
@@ -155,4 +156,151 @@ export async function saveKeyTermTranslation(
   }
 
   revalidatePath(`/projects/${projectId}/loops`)
+}
+
+export async function saveBackTranslationRecording(projectId: string, loopId: string, audioUrl: string) {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Anda harus login terlebih dahulu')
+  }
+
+  const { data: existingRec } = await supabase
+    .from('recordings')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('template_loop_id', loopId)
+    .maybeSingle()
+
+  if (existingRec) {
+    const { error } = await supabase
+      .from('recordings')
+      .update({
+        back_translation_audio_url: audioUrl,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', existingRec.id)
+
+    if (error) throw new Error(error.message)
+  } else {
+    const { error } = await supabase.from('recordings').insert({
+      project_id: projectId,
+      template_loop_id: loopId,
+      back_translation_audio_url: audioUrl,
+      status: 'pending',
+      recorded_by: user.id,
+    })
+
+    if (error) throw new Error(error.message)
+  }
+
+  const { data: loopData } = await supabase
+    .from("template_loops")
+    .select("scene_id")
+    .eq("id", loopId)
+    .maybeSingle();
+
+  revalidatePath(`/projects/${projectId}`)
+  if (loopData?.scene_id) {
+    revalidatePath(`/projects/${projectId}/scenes/${loopData.scene_id}/loops/${loopId}`)
+  }
+}
+
+export async function getCloudinaryUploadParams(projectId: string, loopId: string) {
+  const supabase = await createClient()
+
+  const { data: project } = await supabase
+    .from('projects')
+    .select('name')
+    .eq('id', projectId)
+    .single()
+
+  if (!project) throw new Error('Proyek tidak ditemukan')
+
+  const { data: loop } = await supabase
+    .from('template_loops')
+    .select('name, scene_id')
+    .eq('id', loopId)
+    .single()
+
+  if (!loop) throw new Error('Loop tidak ditemukan')
+
+  const { data: scene } = await supabase
+    .from('template_scenes')
+    .select('name')
+    .eq('id', loop.scene_id)
+    .single()
+
+  if (!scene) throw new Error('Scene tidak ditemukan')
+
+  const sanitize = (part: string) => {
+    return part.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '')
+  }
+
+  const cleanProjectName = sanitize(project.name)
+  const cleanSceneName = sanitize(scene.name)
+  const cleanLoopName = sanitize(loop.name)
+
+  const { data: recordings } = await supabase
+    .from('recordings')
+    .select('back_translation_audio_url')
+    .eq('project_id', projectId)
+    .not('back_translation_audio_url', 'is', null)
+
+  const prefix = `bt-${cleanProjectName}-${cleanSceneName}-${cleanLoopName}-`
+  const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')
+  const regex = new RegExp(`${escapeRegExp(prefix)}(\\d{4})`, 'i')
+
+  let maxIndex = 0
+  if (recordings) {
+    for (const rec of recordings) {
+      const url = rec.back_translation_audio_url
+      if (!url) continue
+      const match = url.match(regex)
+      if (match) {
+        const index = parseInt(match[1], 10)
+        if (index > maxIndex) {
+          maxIndex = index
+        }
+      }
+    }
+  }
+
+  const nextIndex = maxIndex + 1
+  const nextIndexStr = String(nextIndex).padStart(4, '0')
+  const publicId = `${prefix}${nextIndexStr}`
+
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || ''
+  const apiKey = process.env.CLOUDINARY_API_KEY || ''
+  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'ml_default'
+  const apiSecret = process.env.CLOUDINARY_API_SECRET || ''
+
+  const timestamp = Math.round(new Date().getTime() / 1000)
+
+  const paramsToSign = {
+    timestamp,
+    upload_preset: uploadPreset,
+    public_id: publicId,
+  }
+
+  const sortedKeys = Object.keys(paramsToSign).sort()
+  const paramString = sortedKeys
+    .map((key) => `${key}=${paramsToSign[key as keyof typeof paramsToSign]}`)
+    .join('&')
+
+  const stringToSign = `${paramString}${apiSecret}`
+  const signature = crypto.createHash('sha1').update(stringToSign).digest('hex')
+
+  return {
+    cloudName,
+    apiKey,
+    uploadPreset,
+    publicId,
+    timestamp,
+    signature,
+  }
 }

@@ -10,9 +10,14 @@ import { KeyTermDetailPanel } from "./KeyTermDetailPanel";
 interface KeyTermsTabProps {
   activeScene: Scene | null;
   projectId: string;
+  onSaveStateChange?: (status: "saving" | "saved" | "idle") => void;
 }
 
-export function KeyTermsTab({ activeScene, projectId }: KeyTermsTabProps) {
+export function KeyTermsTab({
+  activeScene,
+  projectId,
+  onSaveStateChange,
+}: KeyTermsTabProps) {
   const [selectedTerm, setSelectedTerm] = useState<TermItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [translations, setTranslations] = useState<
@@ -144,6 +149,7 @@ export function KeyTermsTab({ activeScene, projectId }: KeyTermsTabProps) {
     if (!activeTerm) return;
 
     setSavingStates((prev) => ({ ...prev, [activeTerm.id]: true }));
+    onSaveStateChange?.("saving");
     try {
       const supabase = createClient();
       const existing = translations[activeTerm.id];
@@ -225,8 +231,10 @@ export function KeyTermsTab({ activeScene, projectId }: KeyTermsTabProps) {
           ...fields,
         },
       }));
+      onSaveStateChange?.("saved");
     } catch (e) {
       console.error("Gagal menyimpan terjemahan:", e);
+      onSaveStateChange?.("idle");
     } finally {
       setSavingStates((prev) => ({ ...prev, [activeTerm.id]: false }));
     }

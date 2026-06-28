@@ -58,6 +58,22 @@ export function KeyTermDetailPanel({
 
   // Recording state
   const [isRecording, setIsRecording] = useState(false);
+
+  // Refs and hooks for textarea auto-resizing
+  const transRef = useRef<HTMLTextAreaElement | null>(null);
+  const backRef = useRef<HTMLTextAreaElement | null>(null);
+  const notesRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const resizeTextarea = (el: HTMLTextAreaElement) => {
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  };
+
+  useEffect(() => {
+    if (transRef.current) resizeTextarea(transRef.current);
+    if (backRef.current) resizeTextarea(backRef.current);
+    if (notesRef.current) resizeTextarea(notesRef.current);
+  }, [transInput, backInput, notesInput, selectedTerm]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -310,13 +326,24 @@ export function KeyTermDetailPanel({
             </button>
           </div>
           <div className="flex-1 relative">
-            <input
-              type="text"
+            <textarea
+              ref={(el) => {
+                transRef.current = el;
+                if (el) resizeTextarea(el);
+              }}
               value={transInput}
               onChange={(e) => setTransInput(e.target.value)}
+              onInput={(e) => resizeTextarea(e.currentTarget)}
               onBlur={() => handleBlur("translated_text", transInput)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+              }}
               placeholder="Ketik terjemahan kata kunci..."
-              className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 pr-8"
+              rows={1}
+              className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 pr-8 resize-none overflow-hidden leading-relaxed"
             />
             {isSaving && (
               <Loader2 className="absolute right-2.5 top-2 h-4 w-4 animate-spin text-amber-500" />
@@ -325,11 +352,11 @@ export function KeyTermDetailPanel({
         </div>
 
         {/* Back Translation */}
-        <div className="flex items-center gap-3">
-          <span className="w-32 text-xs font-bold text-muted-foreground select-none">
+        <div className="flex items-start gap-3">
+          <span className="w-32 text-xs font-bold text-muted-foreground pt-2 select-none">
             Back Translation:
           </span>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0 mt-1">
             <button
               disabled
               className="h-7.5 w-7.5 rounded-full flex items-center justify-center border border-border/30 text-muted-foreground/30 cursor-not-allowed"
@@ -337,13 +364,24 @@ export function KeyTermDetailPanel({
               <Play className="h-3.5 w-3.5 fill-muted-foreground/30 ml-0.5" />
             </button>
           </div>
-          <input
-            type="text"
+          <textarea
+            ref={(el) => {
+              backRef.current = el;
+              if (el) resizeTextarea(el);
+            }}
             value={backInput}
             onChange={(e) => setBackInput(e.target.value)}
+            onInput={(e) => resizeTextarea(e.currentTarget)}
             onBlur={() => handleBlur("back_translation", backInput)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+            }}
             placeholder="Ketik terjemahan balik..."
-            className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500"
+            rows={1}
+            className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none overflow-hidden leading-relaxed"
           />
         </div>
 
@@ -353,12 +391,23 @@ export function KeyTermDetailPanel({
             Comments / Notes:
           </span>
           <textarea
+            ref={(el) => {
+              notesRef.current = el;
+              if (el) resizeTextarea(el);
+            }}
             value={notesInput}
             onChange={(e) => setNotesInput(e.target.value)}
+            onInput={(e) => resizeTextarea(e.currentTarget)}
             onBlur={() => handleBlur("notes", notesInput)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+            }}
             placeholder="Masukkan komentar atau catatan..."
-            rows={2}
-            className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 resize-y"
+            rows={1}
+            className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none overflow-hidden leading-relaxed"
           />
         </div>
       </div>

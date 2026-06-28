@@ -12,6 +12,8 @@ interface RawRecording {
   recorded_audio_url: string;
   status: "pending" | "recorded" | "approved";
   translated_text: string | null;
+  back_translation: string | null;
+  back_translation_audio_url: string | null;
   created_at: string;
   recorded_by_user: { username: string } | null;
 }
@@ -162,7 +164,7 @@ export default async function ProjectDetailsPage({ params }: PageProps) {
   const { data: recordings } = await supabase
     .from("recordings")
     .select(
-      "id, template_loop_id, recorded_audio_url, status, translated_text, created_at, recorded_by_user:users(username)",
+      "id, template_loop_id, recorded_audio_url, status, translated_text, back_translation, back_translation_audio_url, created_at, recorded_by_user:users(username)",
     )
     .eq("project_id", projectId);
 
@@ -228,6 +230,8 @@ export default async function ProjectDetailsPage({ params }: PageProps) {
               recorded_audio_url: rec.recorded_audio_url,
               status: rec.status,
               translated_text: rec.translated_text,
+              back_translation: rec.back_translation,
+              back_translation_audio_url: rec.back_translation_audio_url || null,
               recorded_by_user: rec.recorded_by_user,
               created_at: rec.created_at,
             }

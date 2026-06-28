@@ -288,3 +288,50 @@ export async function appendAudioBlobs(
   await audioCtx.close();
   return wavBlob;
 }
+
+/**
+ * Normalizes the peak amplitude of an audio blob to a target decibel level (default is -6dB).
+ */
+export async function normalizeAudioBlob(
+  blob: Blob,
+  targetDb: number = -6,
+): Promise<Blob> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const AudioContextClass =
+    window.AudioContext ||
+    (
+      window as Window &
+        typeof globalThis & { webkitAudioContext?: typeof AudioContext }
+    ).webkitAudioContext;
+  const audioCtx = new AudioContextClass({ sampleRate: 48000 });
+  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+  const sampleRate = audioBuffer.sampleRate;
+  const channelData = audioBuffer.getChannelData(0);
+  const length = audioBuffer.length;
+
+  let maxPeak = 0;
+  for (let i = 0; i < length; i++) {
+    const absVal = Math.abs(channelData[i]);
+    if (absVal > maxPeak) {
+      maxPeak = absVal;
+    }
+  }
+
+  if (maxPeak === 0) {
+    await audioCtx.close();
+    return blob;
+  }
+
+  const targetPeak = Math.pow(10, targetDb / 20);
+  const multiplier = targetPeak / maxPeak;
+
+  const normalizedData = new Float32Array(length);
+  for (let i = 0; i < length; i++) {
+    normalizedData[i] = channelData[i] * multiplier;
+  }
+
+  const wavBlob = encodeWav24Bit(normalizedData, sampleRate);
+  await audioCtx.close();
+  return wavBlob;
+}

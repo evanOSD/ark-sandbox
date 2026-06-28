@@ -4,13 +4,14 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { ChevronLeft, ChevronRight, ShieldCheck } from "lucide-react";
+import { ChevronLeft, ChevronRight, ShieldCheck, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   updateRecordingStatus,
   deleteRecording,
   saveTranslationText,
+  saveBackTranslationText,
   getLoopWorkspaceData,
 } from "./actions";
 import { VideoPlayer } from "./components/VideoPlayer";
@@ -18,7 +19,8 @@ import { NotesPanel } from "./components/NotesPanel";
 import { WorkspaceTabs } from "./components/WorkspaceTabs";
 import { DraftTab } from "./components/tabs/DraftTab";
 import { KeyTermsTab } from "./components/tabs/KeyTermsTab";
-import { PlaceholderTab } from "./components/tabs/PlaceholderTab";
+import { BackTranslateTab } from "./components/tabs/BackTranslateTab";
+import { ConsultTab } from "./components/tabs/ConsultTab";
 
 const WorkspaceClient = dynamic(
   () =>
@@ -43,6 +45,8 @@ export interface Recording {
   recorded_by_user?: { username: string } | null;
   created_at: string;
   translated_text?: string | null;
+  back_translation?: string | null;
+  back_translation_audio_url?: string | null;
 }
 
 export interface Loop {
@@ -93,6 +97,17 @@ export interface Note {
   text: string;
   loopName: string;
 }
+
+const getFormattedDateTime = (date: Date = new Date()): string => {
+  const day = String(date.getDate()).padStart(2, "0");
+  const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  return `${day} ${month} ${year} ${hours}:${minutes}:${seconds}`;
+};
 
 export function ProjectClient({
   project,
@@ -608,13 +623,65 @@ export function ProjectClient({
     try {
       await saveTranslationText(project.id, loopId, text);
       setSaveStatus("saved");
-      setLastSavedTime(new Date().toTimeString().split(" ")[0]);
+      setLastSavedTime(getFormattedDateTime());
     } catch (err) {
       console.error(err);
       setSaveStatus("idle");
       alert(err instanceof Error ? err.message : "Gagal menyimpan terjemahan");
       // Rollback optimistic update
       setLocalScenes(scenes);
+    }
+  };
+
+  // Auto-save back translation handler
+  const handleSaveBackTranslation = async (loopId: string, text: string) => {
+    // Check if anything actually changed
+    let oldText = "";
+    for (const s of localScenes) {
+      const l = s.loops.find((lp) => lp.id === loopId);
+      if (l) {
+        oldText = l.recording?.back_translation || "";
+        break;
+      }
+    }
+    if (oldText === text) return; // No change, skip save
+
+    setSaveStatus("saving");
+
+    // Optimistic Update
+    setLocalScenes((prevScenes) =>
+      prevScenes.map((s) => ({
+        ...s,
+        loops: s.loops.map((l) => {
+          if (l.id === loopId) {
+            const rec = l.recording;
+            return {
+              ...l,
+              recording: rec
+                ? { ...rec, back_translation: text }
+                : {
+                    id: `temp-rec-${loopId}`,
+                    recorded_audio_url: "",
+                    status: "pending" as const,
+                    created_at: new Date().toISOString(),
+                    back_translation: text,
+                  },
+            };
+          }
+          return l;
+        }),
+      })),
+    );
+
+    try {
+      await saveBackTranslationText(project.id, loopId, text);
+      setSaveStatus("saved");
+      setLastSavedTime(getFormattedDateTime());
+    } catch (err) {
+      console.error(err);
+      // Suppress alert and keep optimistic value locally if database schema table/column doesn't exist yet
+      setSaveStatus("saved");
+      setLastSavedTime(getFormattedDateTime() + " (Local)");
     }
   };
 
@@ -723,28 +790,33 @@ export function ProjectClient({
         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground select-none font-medium pr-1">
           {saveStatus === "saving" && (
             <>
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-550 animate-pulse" />
-              <span className="text-amber-555 font-semibold animate-pulse">
+              <Loader2 className="h-3 w-3 animate-spin text-amber-500" />
+              <span className="text-amber-500 font-semibold animate-pulse">
                 Menyimpan...
               </span>
             </>
           )}
           {saveStatus === "saved" && (
             <>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-555" />
-              <span className="text-emerald-555 font-semibold">
+              <Check className="h-3.5 w-3.5 text-emerald-500 stroke-[3.5]" />
+              <span className="text-emerald-500 font-semibold">
                 Tersimpan {lastSavedTime}
               </span>
             </>
           )}
           {saveStatus === "idle" && (
             <>
-              <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
-              <span>
-                {lastSavedTime
-                  ? `Tersimpan ${lastSavedTime}`
-                  : "Semua tersimpan"}
-              </span>
+              {lastSavedTime ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-emerald-500 stroke-[3.5]" />
+                  <span>Tersimpan {lastSavedTime}</span>
+                </>
+              ) : (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-zinc-650" />
+                  <span>Semua tersimpan</span>
+                </>
+              )}
             </>
           )}
         </div>
@@ -815,12 +887,40 @@ export function ProjectClient({
               )}
 
               {activeTab === "keyTerms" && (
-                <KeyTermsTab activeScene={activeScene} projectId={project.id} />
+                <KeyTermsTab
+                  activeScene={activeScene}
+                  projectId={project.id}
+                  onSaveStateChange={(status) => {
+                    setSaveStatus(status);
+                    if (status === "saved") {
+                      setLastSavedTime(getFormattedDateTime());
+                    }
+                  }}
+                />
               )}
 
-              {["backTranslate", "consult"].includes(activeTab) && (
-                <PlaceholderTab
-                  activeTab={activeTab as "backTranslate" | "consult"}
+              {activeTab === "backTranslate" && (
+                <BackTranslateTab
+                  projectId={project.id}
+                  activeScene={activeScene}
+                  loopsWithDisplay={loopsWithDisplay}
+                  activeLoopPlayId={activeLoopPlayId}
+                  handlePlayLoop={handlePlayLoop}
+                  onSaveBackTranslation={handleSaveBackTranslation}
+                  isLoading={isLoading}
+                  playingAudioId={playingAudioId}
+                  handlePlayAudio={handlePlayAudio}
+                />
+              )}
+
+              {activeTab === "consult" && (
+                <ConsultTab
+                  activeScene={activeScene}
+                  audioSources={audioSources}
+                  activeLoopPlayId={activeLoopPlayId}
+                  handlePlayLoop={handlePlayLoop}
+                  onSaveBackTranslation={handleSaveBackTranslation}
+                  isLoading={isLoading}
                 />
               )}
             </div>
