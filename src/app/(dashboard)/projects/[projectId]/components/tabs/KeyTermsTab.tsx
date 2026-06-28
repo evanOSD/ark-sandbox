@@ -11,12 +11,16 @@ interface KeyTermsTabProps {
   activeScene: Scene | null;
   projectId: string;
   onSaveStateChange?: (status: "saving" | "saved" | "idle") => void;
+  handlePlayLoop: (loopId: string, startMs: number) => void;
+  activeLoopPlayId: string | null;
 }
 
 export function KeyTermsTab({
   activeScene,
   projectId,
   onSaveStateChange,
+  handlePlayLoop,
+  activeLoopPlayId,
 }: KeyTermsTabProps) {
   const [selectedTerm, setSelectedTerm] = useState<TermItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -77,7 +81,8 @@ export function KeyTermsTab({
           transMap[row.key_term_id] = {
             id: row.id,
             translated_text: row.translated_text || "",
-            recorded_audio_url: row.recorded_audio_url || "",
+            key_term_audio_url: row.key_term_audio_url || "",
+            key_term_bt_audio_url: row.key_term_bt_audio_url || "",
             back_translation: hasDbSupport
               ? row.back_translation || ""
               : localStorage.getItem(
@@ -157,6 +162,8 @@ export function KeyTermsTab({
       const updateData: {
         updated_at: string;
         translated_text?: string | null;
+        key_term_audio_url?: string | null;
+        key_term_bt_audio_url?: string | null;
         back_translation?: string | null;
         notes?: string | null;
       } = {
@@ -165,6 +172,14 @@ export function KeyTermsTab({
 
       if (fields.translated_text !== undefined) {
         updateData.translated_text = fields.translated_text || null;
+      }
+
+      if (fields.key_term_audio_url !== undefined) {
+        updateData.key_term_audio_url = fields.key_term_audio_url || null;
+      }
+
+      if (fields.key_term_bt_audio_url !== undefined) {
+        updateData.key_term_bt_audio_url = fields.key_term_bt_audio_url || null;
       }
 
       if (dbSupport) {
@@ -268,6 +283,8 @@ export function KeyTermsTab({
             activeScene={activeScene}
             onSaveTranslation={handleSaveTranslation}
             isSaving={isSavingActive}
+            handlePlayLoop={handlePlayLoop}
+            activeLoopPlayId={activeLoopPlayId}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-xs select-none italic">

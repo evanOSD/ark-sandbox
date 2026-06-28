@@ -218,7 +218,8 @@ export async function getLoopWorkspaceData(projectId: string, sceneId: string, l
     key_term_id: string;
     id: string;
     translated_text: string | null;
-    recorded_audio_url: string | null;
+    key_term_audio_url: string | null;
+    key_term_bt_audio_url: string | null;
   }
 
   const rawLoopKeyTerms = (loopKeyTerms || []) as unknown as DBLoopKeyTerm[]
@@ -229,7 +230,7 @@ export async function getLoopWorkspaceData(projectId: string, sceneId: string, l
   if (keyTermIds.length > 0) {
     const { data: transData } = await supabase
       .from('project_key_term_translations')
-      .select('key_term_id, id, translated_text, recorded_audio_url')
+      .select('key_term_id, id, translated_text, key_term_audio_url, key_term_bt_audio_url')
       .eq('project_id', projectId)
       .in('key_term_id', keyTermIds)
     translations = (transData || []) as unknown as DBTranslation[]
@@ -251,7 +252,8 @@ export async function getLoopWorkspaceData(projectId: string, sceneId: string, l
           ? {
               id: trans.id,
               translated_text: trans.translated_text,
-              recorded_audio_url: trans.recorded_audio_url,
+              key_term_audio_url: trans.key_term_audio_url,
+              key_term_bt_audio_url: trans.key_term_bt_audio_url,
             }
           : null,
       }

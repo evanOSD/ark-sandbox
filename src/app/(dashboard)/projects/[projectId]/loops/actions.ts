@@ -101,7 +101,7 @@ export async function saveKeyTermTranslation(
   projectId: string,
   keyTermId: string,
   translatedText: string,
-  audioFile: File | null
+  keyTermAudioUrl: string | null = null
 ) {
   const supabase = await createClient()
 
@@ -113,15 +113,10 @@ export async function saveKeyTermTranslation(
     throw new Error('Anda harus login terlebih dahulu')
   }
 
-  let audioUrl: string | null = null
-  if (audioFile) {
-    audioUrl = await saveAudioFileLocally(audioFile, `term-${keyTermId}`)
-  }
-
   // Cek apakah sudah ada terjemahan key term untuk project ini
   const { data: existingTrans } = await supabase
     .from('project_key_term_translations')
-    .select('id, recorded_audio_url')
+    .select('id, key_term_audio_url')
     .eq('project_id', projectId)
     .eq('key_term_id', keyTermId)
     .maybeSingle()
@@ -132,8 +127,8 @@ export async function saveKeyTermTranslation(
     updated_at: new Date().toISOString(),
   }
 
-  if (audioUrl) {
-    updateData.recorded_audio_url = audioUrl
+  if (keyTermAudioUrl !== undefined) {
+    updateData.key_term_audio_url = keyTermAudioUrl
   }
 
   if (existingTrans) {
@@ -148,7 +143,7 @@ export async function saveKeyTermTranslation(
       project_id: projectId,
       key_term_id: keyTermId,
       translated_text: translatedText || null,
-      recorded_audio_url: audioUrl || null,
+      key_term_audio_url: keyTermAudioUrl || null,
       recorded_by: user.id,
     })
 
@@ -265,6 +260,100 @@ export async function getCloudinaryUploadParams(projectId: string, loopId: strin
         const index = parseInt(match[1], 10)
         if (index > maxIndex) {
           maxIndex = index
+        }
+      }
+    }
+  }
+
+  const nextIndex = maxIndex + 1
+  const nextIndexStr = String(nextIndex).padStart(4, '0')
+  const publicId = `${prefix}${nextIndexStr}`
+
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || ''
+  const apiKey = process.env.CLOUDINARY_API_KEY || ''
+  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'ml_default'
+  const apiSecret = process.env.CLOUDINARY_API_SECRET || ''
+
+  const timestamp = Math.round(new Date().getTime() / 1000)
+
+  const paramsToSign = {
+    timestamp,
+    upload_preset: uploadPreset,
+    public_id: publicId,
+  }
+
+  const sortedKeys = Object.keys(paramsToSign).sort()
+  const paramString = sortedKeys
+    .map((key) => `${key}=${paramsToSign[key as keyof typeof paramsToSign]}`)
+    .join('&')
+
+  const stringToSign = `${paramString}${apiSecret}`
+  const signature = crypto.createHash('sha1').update(stringToSign).digest('hex')
+
+  return {
+    cloudName,
+    apiKey,
+    uploadPreset,
+    publicId,
+    timestamp,
+    signature,
+  }
+}
+
+export async function getCloudinaryUploadParamsKeyTerms(
+  projectId: string,
+  keyTermId: string,
+  type: 'kt' | 'kt-bt'
+) {
+  const supabase = await createClient()
+
+  const { data: project } = await supabase
+    .from('projects')
+    .select('name')
+    .eq('id', projectId)
+    .single()
+
+  if (!project) throw new Error('Proyek tidak ditemukan')
+
+  const { data: keyTerm } = await supabase
+    .from('key_terms')
+    .select('term')
+    .eq('id', keyTermId)
+    .single()
+
+  if (!keyTerm) throw new Error('Kata kunci tidak ditemukan')
+
+  const sanitize = (part: string) => {
+    return part.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '')
+  }
+
+  const cleanProjectName = sanitize(project.name)
+  const cleanKeyTermName = sanitize(keyTerm.term)
+
+  const prefix = type === 'kt'
+    ? `kt-${cleanProjectName}-${cleanKeyTermName}-`
+    : `kt-bt-${cleanProjectName}-${cleanKeyTermName}-`
+
+  const { data: translations } = await supabase
+    .from('project_key_term_translations')
+    .select('key_term_audio_url, key_term_bt_audio_url')
+    .eq('project_id', projectId)
+
+  const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`${escapeRegExp(prefix)}(\\d{4})`, 'i')
+
+  let maxIndex = 0
+  if (translations) {
+    for (const trans of translations) {
+      const urls = [trans.key_term_audio_url, trans.key_term_bt_audio_url]
+      for (const url of urls) {
+        if (!url) continue
+        const match = url.match(regex)
+        if (match) {
+          const index = parseInt(match[1], 10)
+          if (index > maxIndex) {
+            maxIndex = index
+          }
         }
       }
     }

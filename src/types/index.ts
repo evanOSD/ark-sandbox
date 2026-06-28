@@ -6,7 +6,8 @@ export interface KeyTerm {
   translation?: {
     id: string;
     translated_text: string | null;
-    recorded_audio_url: string | null;
+    key_term_audio_url: string | null;
+    key_term_bt_audio_url: string | null;
   } | null;
 }
 

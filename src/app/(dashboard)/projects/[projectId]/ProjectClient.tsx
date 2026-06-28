@@ -887,9 +887,11 @@ export function ProjectClient({
               )}
 
               {activeTab === "keyTerms" && (
-                <KeyTermsTab
+              <KeyTermsTab
                   activeScene={activeScene}
                   projectId={project.id}
+                  handlePlayLoop={handlePlayLoop}
+                  activeLoopPlayId={activeLoopPlayId}
                   onSaveStateChange={(status) => {
                     setSaveStatus(status);
                     if (status === "saved") {

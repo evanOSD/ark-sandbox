@@ -1,4 +1,4 @@
-import { Play, Square, CheckCircle2, AlertCircle, Trash2 } from "lucide-react";
+import { Play, Square, Check, SearchAlert, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Scene, Project, Loop } from "../../ProjectClient";
@@ -19,7 +19,10 @@ interface DraftTabProps {
   handlePlayAudio: (url: string, recId: string) => void;
   isAdmin: boolean;
   isLoading: boolean;
-  handleStatusChange: (recId: string, status: "pending" | "recorded" | "approved") => void;
+  handleStatusChange: (
+    recId: string,
+    status: "pending" | "recorded" | "approved",
+  ) => void;
   handleDeleteRecording: (recId: string) => void;
   activeAudioUrl: string;
   setActiveAudioUrl: (url: string) => void;
@@ -51,7 +54,9 @@ export function DraftTab({
       {activeScene && (
         <div className="grid grid-cols-2 gap-4 px-3.5 py-1.5 bg-muted/30 text-[10px] font-black uppercase tracking-wider text-foreground select-none text-center items-center">
           <div className="pr-4 border-r border-border flex items-center justify-center gap-1.5">
-            <span className="text-muted-foreground font-bold uppercase tracking-wider text-[10px]">Referensi:</span>
+            <span className="text-muted-foreground font-bold uppercase tracking-wider text-[10px]">
+              Referensi:
+            </span>
             <select
               value={activeAudioUrl}
               onChange={(e) => {
@@ -61,7 +66,7 @@ export function DraftTab({
             >
               {audioSources.map((source) => (
                 <option key={source.name} value={source.url}>
-                  {source.name.replace(/\.wav$/i, '')}
+                  {source.name.replace(/\.wav$/i, "")}
                 </option>
               ))}
               {audioSources.length === 0 && (
@@ -69,16 +74,17 @@ export function DraftTab({
               )}
             </select>
           </div>
-          <div className="pl-4 text-center">
-            terjemahan anda
-          </div>
+          <div className="pl-4 text-center">terjemahan anda</div>
         </div>
       )}
       {activeScene ? (
         loopsWithDisplay.map(({ loop, text, note }) => {
           const rec = loop.recording;
           return (
-            <div key={loop.id} className="p-3.5 grid grid-cols-2 gap-4 hover:bg-muted/10 transition-colors">
+            <div
+              key={loop.id}
+              className="p-3.5 grid grid-cols-2 gap-4 hover:bg-muted/10 transition-colors"
+            >
               {/* Left Column: Play, Name, Text */}
               <div className="flex items-start gap-4 pr-4 border-r border-border">
                 {/* Play Loop Button (simultaneous video, ref audio, and MNE) */}
@@ -89,10 +95,14 @@ export function DraftTab({
                     "h-6 w-6 rounded-full border shrink-0 mt-0.5 transition-colors cursor-pointer",
                     activeLoopPlayId === loop.id
                       ? "text-rose-500 border-rose-950/40 hover:bg-rose-950/20 bg-background/40 hover:text-rose-400"
-                      : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400"
+                      : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400",
                   )}
                   onClick={() => handlePlayLoop(loop.id, loop.start_time_ms)}
-                  title={activeLoopPlayId === loop.id ? "Hentikan Pemutaran Loop" : "Putar Loop (Video & Audio)"}
+                  title={
+                    activeLoopPlayId === loop.id
+                      ? "Hentikan Pemutaran Loop"
+                      : "Putar Loop (Video & Audio)"
+                  }
                 >
                   {activeLoopPlayId === loop.id ? (
                     <Square className="h-2.5 w-2.5 fill-current" />
@@ -122,19 +132,50 @@ export function DraftTab({
               {/* Right Column: Record and Results/Input */}
               <div className="flex flex-col gap-2 pl-4 justify-center">
                 <div className="flex items-start gap-3 w-full">
-                  {/* Red Record Button */}
-                  <button
-                    type="button"
-                    onClick={() => onOpenRecordModal(loop.id, activeScene.id)}
-                    className="h-6 w-6 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group shrink-0 mt-0.5"
-                    title="Rekam Loop"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-white group-hover:scale-110 transition-transform" />
-                  </button>
+                  {/* Record + Play/Stop Buttons stacked vertically */}
+                  <div className="flex flex-col items-center gap-1 shrink-0 mt-0.5">
+                    {/* Red Record Button */}
+                    <button
+                      type="button"
+                      onClick={() => onOpenRecordModal(loop.id, activeScene.id)}
+                      className="h-6 w-6 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group"
+                      title="Rekam Loop"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-white group-hover:scale-110 transition-transform" />
+                    </button>
+
+                    {/* Play/Stop Button */}
+                    {rec && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-6 w-6 rounded-full border transition-colors cursor-pointer",
+                          playingAudioId === rec.id
+                            ? "text-rose-500 border-rose-950/40 hover:bg-rose-950/20 bg-background/40 hover:text-rose-400"
+                            : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400",
+                        )}
+                        onClick={() =>
+                          handlePlayAudio(rec.recorded_audio_url, rec.id)
+                        }
+                        title={
+                          playingAudioId === rec.id
+                            ? "Hentikan Rekaman"
+                            : "Putar Hasil Rekaman"
+                        }
+                      >
+                        {playingAudioId === rec.id ? (
+                          <Square className="h-2.5 w-2.5 fill-current" />
+                        ) : (
+                          <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
 
                   {/* Translation Text Input */}
                   <textarea
-                    key={`trans-input-${loop.id}-${rec?.id || 'none'}`}
+                    key={`trans-input-${loop.id}-${rec?.id || "none"}`}
                     ref={(el) => {
                       if (el) {
                         el.style.height = "auto";
@@ -149,7 +190,9 @@ export function DraftTab({
                       el.style.height = "auto";
                       el.style.height = `${el.scrollHeight}px`;
                     }}
-                    onBlur={(e) => handleSaveTranslation(loop.id, e.target.value)}
+                    onBlur={(e) =>
+                      handleSaveTranslation(loop.id, e.target.value)
+                    }
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
@@ -159,29 +202,17 @@ export function DraftTab({
                     className="flex-1 min-w-[80px] bg-muted border border-border rounded px-2.5 py-1 text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:border-border focus:bg-background transition-colors resize-none overflow-hidden leading-relaxed"
                   />
 
-                  {/* User Audio Result if exists */}
+                  {/* Status tag & Admin controls */}
                   {rec && (
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handlePlayAudio(rec.recorded_audio_url, rec.id)}
-                        className={cn(
-                          "h-6 px-2 text-[9px] font-bold border-border rounded bg-muted/50 hover:bg-secondary text-foreground/90 gap-1",
-                          playingAudioId === rec.id && "bg-primary text-primary-foreground border-primary"
-                        )}
-                      >
-                        <Play className="h-2.5 w-2.5 fill-current" /> Hasil
-                      </Button>
-
                       {/* Status tag */}
                       {rec.status === "approved" ? (
-                        <span className="h-6 px-2 rounded bg-green-950/20 text-green-400 border border-green-900/20 text-[9px] font-bold flex items-center gap-0.5 uppercase tracking-wider">
-                          <CheckCircle2 className="h-2.5 w-2.5" /> Disetujui
+                        <span className="h-6 px-2 rounded bg-background text-success border border-success text-[10px] font-bold flex items-center gap-0.5 uppercase tracking-wider">
+                          <Check className="h-4 w-4" /> Disetujui
                         </span>
                       ) : (
-                        <span className="h-6 px-2 rounded bg-blue-950/20 text-blue-400 border border-blue-900/20 text-[9px] font-bold flex items-center gap-0.5 uppercase tracking-wider animate-pulse">
-                          <AlertCircle className="h-2.5 w-2.5" /> Review
+                        <span className="h-6 px-2 rounded bg-background text-destructive border border-destructive text-[10px] font-bold flex items-center gap-0.5 uppercase wrapped-text tracking-wider">
+                          <SearchAlert className="h-4 w-4" /> Perlu Review
                         </span>
                       )}
 
@@ -192,7 +223,9 @@ export function DraftTab({
                             <Button
                               size="sm"
                               disabled={isLoading}
-                              onClick={() => handleStatusChange(rec.id, "approved")}
+                              onClick={() =>
+                                handleStatusChange(rec.id, "approved")
+                              }
                               className="h-6 px-2 bg-green-600 hover:bg-green-700 text-foreground text-[9px] font-bold"
                             >
                               Setujui
@@ -219,7 +252,9 @@ export function DraftTab({
         })
       ) : (
         <div className="text-center py-12 border-2 border-dashed border-border rounded-xl m-4">
-          <p className="text-muted-foreground text-sm">Tidak ada scene yang ditemukan dalam proyek ini.</p>
+          <p className="text-muted-foreground text-sm">
+            Tidak ada scene yang ditemukan dalam proyek ini.
+          </p>
         </div>
       )}
     </div>

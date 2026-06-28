@@ -1,21 +1,15 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import {
-  Play,
-  Pause,
-  Mic,
-  Square,
-  Tag,
-  Volume2,
-  User,
-  Loader2,
-} from "lucide-react";
+import { Play, Square, Tag, Volume2, User, Loader2 } from "lucide-react";
 import { Scene } from "../../ProjectClient";
-import { saveKeyTermTranslation } from "../../loops/actions";
-import { createClient } from "@/utils/supabase/client";
+import { getCloudinaryUploadParamsKeyTerms } from "../../loops/actions";
 import { renderFormattedText } from "@/utils/text-formatting";
 import { TermItem, TranslationData, OccurrenceItem } from "@/types/key-terms";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { LineRecordingModal } from "../../scenes/[sceneId]/loops/[loopId]/components/audio-editor/LineRecordingModal";
+import { useAudioSettings } from "@/hooks/useAudioSettings";
 
 interface KeyTermDetailPanelProps {
   selectedTerm: TermItem;
@@ -24,6 +18,8 @@ interface KeyTermDetailPanelProps {
   activeScene: Scene | null;
   onSaveTranslation: (fields: Partial<TranslationData>) => Promise<void>;
   isSaving: boolean;
+  handlePlayLoop: (loopId: string, startMs: number) => void;
+  activeLoopPlayId: string | null;
 }
 
 export function KeyTermDetailPanel({
@@ -33,6 +29,8 @@ export function KeyTermDetailPanel({
   activeScene,
   onSaveTranslation,
   isSaving,
+  handlePlayLoop,
+  activeLoopPlayId,
 }: KeyTermDetailPanelProps) {
   const [transInput, setTransInput] = useState(
     initialTranslation?.translated_text || "",
@@ -41,8 +39,11 @@ export function KeyTermDetailPanel({
     initialTranslation?.back_translation || "",
   );
   const [notesInput, setNotesInput] = useState(initialTranslation?.notes || "");
-  const [audioUrl, setAudioUrl] = useState<string | null>(
-    initialTranslation?.recorded_audio_url || null,
+  const [ktAudioUrl, setKtAudioUrl] = useState<string | null>(
+    initialTranslation?.key_term_audio_url || null,
+  );
+  const [btAudioUrl, setBtAudioUrl] = useState<string | null>(
+    initialTranslation?.key_term_bt_audio_url || null,
   );
   const [prevTranslation, setPrevTranslation] =
     useState<TranslationData | null>(initialTranslation);
@@ -53,11 +54,16 @@ export function KeyTermDetailPanel({
     setTransInput(initialTranslation?.translated_text || "");
     setBackInput(initialTranslation?.back_translation || "");
     setNotesInput(initialTranslation?.notes || "");
-    setAudioUrl(initialTranslation?.recorded_audio_url || null);
+    setKtAudioUrl(initialTranslation?.key_term_audio_url || null);
+    setBtAudioUrl(initialTranslation?.key_term_bt_audio_url || null);
   }
 
-  // Recording state
-  const [isRecording, setIsRecording] = useState(false);
+  // Recording state using LineRecordingModal
+  const [recordingTermType, setRecordingTermType] = useState<
+    "kt" | "kt-bt" | null
+  >(null);
+  const [isSavingAudio, setIsSavingAudio] = useState(false);
+  const audioSettings = useAudioSettings();
 
   // Refs and hooks for textarea auto-resizing
   const transRef = useRef<HTMLTextAreaElement | null>(null);
@@ -74,11 +80,9 @@ export function KeyTermDetailPanel({
     if (backRef.current) resizeTextarea(backRef.current);
     if (notesRef.current) resizeTextarea(notesRef.current);
   }, [transInput, backInput, notesInput, selectedTerm]);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
 
   // Playback state
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Clean up audio on unmount
@@ -109,124 +113,119 @@ export function KeyTermDetailPanel({
     }
   };
 
-  // Audio recording handlers
-  const startRecording = async () => {
+  const handleSaveRecordingBlob = async (blob: Blob) => {
+    if (!recordingTermType) return;
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
+      setIsSavingAudio(true);
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
+      // Normalize to -6dB
+      let finalBlob = blob;
+      try {
+        const { normalizeAudioBlob } = await import("@/lib/audio-utils");
+        finalBlob = await normalizeAudioBlob(blob, -6);
+      } catch (normErr) {
+        console.error("Gagal melakukan normalisasi audio:", normErr);
+      }
 
-      mediaRecorder.onstop = async () => {
-        const recordedBlob = new Blob(audioChunksRef.current, {
-          type: "audio/wav",
-        });
-        const url = URL.createObjectURL(recordedBlob);
-        setAudioUrl(url);
+      // 1. Get Cloudinary signed upload parameters from server
+      const uploadParams = await getCloudinaryUploadParamsKeyTerms(
+        projectId,
+        selectedTerm.id,
+        recordingTermType,
+      );
 
-        try {
-          const audioFile = new File(
-            [recordedBlob],
-            `term-${selectedTerm.id}.wav`,
-            { type: "audio/wav" },
-          );
-          await saveKeyTermTranslation(
-            projectId,
-            selectedTerm.id,
-            transInput,
-            audioFile,
-          );
+      // 2. Prepare FormData for direct browser upload
+      const cloudinaryFormData = new FormData();
+      cloudinaryFormData.append(
+        "file",
+        finalBlob,
+        `${uploadParams.publicId}.wav`,
+      );
+      cloudinaryFormData.append("api_key", uploadParams.apiKey);
+      cloudinaryFormData.append("timestamp", String(uploadParams.timestamp));
+      cloudinaryFormData.append("upload_preset", uploadParams.uploadPreset);
+      cloudinaryFormData.append("public_id", uploadParams.publicId);
+      cloudinaryFormData.append("signature", uploadParams.signature);
 
-          const supabase = createClient();
-          const { data, error } = await supabase
-            .from("project_key_term_translations")
-            .select("recorded_audio_url, id")
-            .eq("project_id", projectId)
-            .eq("key_term_id", selectedTerm.id)
-            .maybeSingle();
+      // 3. Post to Cloudinary endpoint
+      const uploadRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${uploadParams.cloudName}/video/upload`,
+        {
+          method: "POST",
+          body: cloudinaryFormData,
+        },
+      );
 
-          if (error) throw error;
+      const uploadData = await uploadRes.json();
+      if (uploadData.error) {
+        throw new Error("Cloudinary Upload Error: " + uploadData.error.message);
+      }
 
-          if (data?.recorded_audio_url) {
-            setAudioUrl(data.recorded_audio_url);
-            onSaveTranslation({
-              recorded_audio_url: data.recorded_audio_url,
-              id: data.id,
-            });
-          }
-        } catch (err) {
-          console.error("Gagal mengunggah audio:", err);
-          alert("Gagal menyimpan audio di server.");
-        }
-      };
+      const secureUrl = uploadData.secure_url;
 
-      mediaRecorder.start();
-      setIsRecording(true);
+      // 4. Save to Database via parent callback onSaveTranslation
+      if (recordingTermType === "kt") {
+        setKtAudioUrl(secureUrl);
+        await onSaveTranslation({ key_term_audio_url: secureUrl });
+      } else {
+        setBtAudioUrl(secureUrl);
+        await onSaveTranslation({ key_term_bt_audio_url: secureUrl });
+      }
     } catch (err) {
-      console.error("Gagal mengakses mikrofon:", err);
-      alert("Gagal mengakses mikrofon. Pastikan izin mikrofon diaktifkan.");
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream
-        .getTracks()
-        .forEach((track) => track.stop());
-      setIsRecording(false);
+      console.error("Gagal menyimpan rekaman:", err);
+      alert(
+        "Gagal menyimpan rekaman: " +
+          (err instanceof Error ? err.message : err),
+      );
+    } finally {
+      setIsSavingAudio(false);
+      setRecordingTermType(null);
     }
   };
 
   // Audio Playback
-  const togglePlayAudio = (url: string) => {
+  const togglePlayAudio = (url: string, id: string) => {
     if (audioRef.current) {
-      if (isPlaying && audioRef.current.src === url) {
+      if (playingAudioId === id) {
         audioRef.current.pause();
-        setIsPlaying(false);
+        setPlayingAudioId(null);
       } else {
         audioRef.current.src = url;
         audioRef.current.play();
-        setIsPlaying(true);
-        audioRef.current.onended = () => setIsPlaying(false);
+        setPlayingAudioId(id);
+        audioRef.current.onended = () => setPlayingAudioId(null);
       }
     } else {
       const audio = new Audio(url);
       audioRef.current = audio;
       audio.play();
-      setIsPlaying(true);
-      audio.onended = () => setIsPlaying(false);
+      setPlayingAudioId(id);
+      audio.onended = () => setPlayingAudioId(null);
     }
   };
 
   // Find loops where key term is present (only real loops from Supabase)
-  const occurrences: OccurrenceItem[] = React.useMemo(() => {
-    const realLoops =
-      activeScene?.loops.filter((loop) =>
-        loop.key_terms?.some((kt) => kt.id === selectedTerm.id),
-      ) || [];
+  const realLoops =
+    activeScene?.loops.filter((loop) =>
+      loop.key_terms?.some((kt) => kt.id === selectedTerm.id),
+    ) || [];
 
-    return realLoops.map((loop) => ({
-      id: loop.id,
-      name: loop.sequence_number.toString().padStart(4, "0"),
-      scriptText:
-        loop.script_text_1 ||
-        loop.script_text_2 ||
-        loop.script_text_3 ||
-        loop.script_text_4 ||
-        "",
-      isReal: true,
-      audioUrl: loop.recording?.recorded_audio_url || null,
-      lips: loop.sequence_number % 2 === 0 ? "2 LIPS" : "1 LIPS",
-      avatar: loop.sequence_number % 3 === 0 ? "female" : "male",
-    }));
-  }, [selectedTerm, activeScene]);
+  const occurrences: OccurrenceItem[] = realLoops.map((loop) => ({
+    id: loop.id,
+    name: loop.sequence_number.toString().padStart(4, "0"),
+    scriptText:
+      loop.script_text_1 ||
+      loop.script_text_2 ||
+      loop.script_text_3 ||
+      loop.script_text_4 ||
+      "",
+    isReal: true,
+    audioUrl: loop.recording?.recorded_audio_url || null,
+    startTimeMs: loop.start_time_ms,
+    lips: loop.sequence_number % 2 === 0 ? "2 LIPS" : "1 LIPS",
+    avatar: loop.sequence_number % 3 === 0 ? "female" : "male",
+  }));
 
   // Regex highlighting helper for terms inside occurrences
   const highlightText = (text: string, term: string) => {
@@ -291,39 +290,44 @@ export function KeyTermDetailPanel({
             Your Translation:
           </span>
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* Red Record Button */}
             <button
-              onClick={isRecording ? stopRecording : startRecording}
-              className={`h-7.5 w-7.5 rounded-full flex items-center justify-center border transition-all cursor-pointer
-                ${
-                  isRecording
-                    ? "bg-red-600 border-red-700 animate-pulse text-white hover:bg-red-700"
-                    : "bg-background border-border hover:bg-muted text-red-500"
-                }`}
-              title={isRecording ? "Stop Rekam" : "Rekam Suara"}
+              type="button"
+              onClick={() => setRecordingTermType("kt")}
+              disabled={isSavingAudio}
+              className="h-6 w-6 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group shrink-0 mt-0.5 disabled:opacity-50 disabled:scale-100"
+              title="Rekam Pelafalan Kata Kunci"
             >
-              {isRecording ? (
-                <Square className="h-3 w-3 fill-white" />
-              ) : (
-                <Mic className="h-3.5 w-3.5 fill-red-500" />
-              )}
+              <span className="w-2 h-2 rounded-full bg-white group-hover:scale-110 transition-transform" />
             </button>
-            <button
-              disabled={!audioUrl}
-              onClick={() => audioUrl && togglePlayAudio(audioUrl)}
-              className={`h-7.5 w-7.5 rounded-full flex items-center justify-center border transition-all
-                ${
-                  audioUrl
-                    ? "bg-background border-border hover:bg-muted text-amber-500 cursor-pointer"
-                    : "bg-background border-border text-muted-foreground/30 cursor-not-allowed"
-                }`}
-              title="Putar Audio"
-            >
-              {isPlaying ? (
-                <Pause className="h-3.5 w-3.5 fill-amber-500" />
-              ) : (
-                <Play className="h-3.5 w-3.5 fill-amber-500 ml-0.5" />
-              )}
-            </button>
+
+            {/* Play/Stop Button */}
+            {ktAudioUrl && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "h-6 w-6 rounded-full border shrink-0 mt-0.5 transition-colors cursor-pointer",
+                  playingAudioId === `kt-${selectedTerm.id}`
+                    ? "text-rose-500 border-rose-950/40 hover:bg-rose-950/20 bg-background/40 hover:text-rose-400"
+                    : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400",
+                )}
+                onClick={() =>
+                  togglePlayAudio(ktAudioUrl, `kt-${selectedTerm.id}`)
+                }
+                title={
+                  playingAudioId === `kt-${selectedTerm.id}`
+                    ? "Hentikan Pemutaran"
+                    : "Putar Pelafalan Kata Kunci"
+                }
+              >
+                {playingAudioId === `kt-${selectedTerm.id}` ? (
+                  <Square className="h-2.5 w-2.5 fill-current" />
+                ) : (
+                  <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
+                )}
+              </Button>
+            )}
           </div>
           <div className="flex-1 relative">
             <textarea
@@ -357,12 +361,44 @@ export function KeyTermDetailPanel({
             Back Translation:
           </span>
           <div className="flex items-center gap-1.5 shrink-0 mt-1">
+            {/* Red Record Button */}
             <button
-              disabled
-              className="h-7.5 w-7.5 rounded-full flex items-center justify-center border border-border/30 text-muted-foreground/30 cursor-not-allowed"
+              type="button"
+              onClick={() => setRecordingTermType("kt-bt")}
+              disabled={isSavingAudio}
+              className="h-6 w-6 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group shrink-0 mt-0.5 disabled:opacity-50 disabled:scale-100"
+              title="Rekam Terjemahan Balik Kata Kunci"
             >
-              <Play className="h-3.5 w-3.5 fill-muted-foreground/30 ml-0.5" />
+              <span className="w-2 h-2 rounded-full bg-white group-hover:scale-110 transition-transform" />
             </button>
+
+            {/* Play/Stop Button */}
+            {btAudioUrl && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "h-6 w-6 rounded-full border shrink-0 mt-0.5 transition-colors cursor-pointer",
+                  playingAudioId === `kt-bt-${selectedTerm.id}`
+                    ? "text-rose-500 border-rose-950/40 hover:bg-rose-950/20 bg-background/40 hover:text-rose-400"
+                    : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400",
+                )}
+                onClick={() =>
+                  togglePlayAudio(btAudioUrl, `kt-bt-${selectedTerm.id}`)
+                }
+                title={
+                  playingAudioId === `kt-bt-${selectedTerm.id}`
+                    ? "Hentikan Pemutaran"
+                    : "Putar Terjemahan Balik Kata Kunci"
+                }
+              >
+                {playingAudioId === `kt-bt-${selectedTerm.id}` ? (
+                  <Square className="h-2.5 w-2.5 fill-current" />
+                ) : (
+                  <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
+                )}
+              </Button>
+            )}
           </div>
           <textarea
             ref={(el) => {
@@ -432,7 +468,8 @@ export function KeyTermDetailPanel({
 
         {occurrences.length === 0 ? (
           <div className="text-xs text-muted-foreground italic">
-            Kata kunci ini belum ditautkan ke loop manapun di scene yang sedang aktif.
+            Kata kunci ini belum ditautkan ke loop manapun di scene yang sedang
+            aktif.
           </div>
         ) : (
           <div className="space-y-4">
@@ -484,21 +521,28 @@ export function KeyTermDetailPanel({
 
                   {/* Occurrences Audio Trigger + Script Text */}
                   <div className="flex-1 flex items-start gap-3 mt-1.5">
-                    <button
-                      onClick={() =>
-                        occ.audioUrl && togglePlayAudio(occ.audioUrl)
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handlePlayLoop(occ.id, occ.startTimeMs)}
+                      className={cn(
+                        "h-6 w-6 rounded-full border shrink-0 transition-colors cursor-pointer",
+                        activeLoopPlayId === occ.id
+                          ? "text-rose-500 border-rose-950/40 hover:bg-rose-950/20 bg-background/40 hover:text-rose-400"
+                          : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400",
+                      )}
+                      title={
+                        activeLoopPlayId === occ.id
+                          ? "Hentikan Pemutaran Loop"
+                          : "Putar Audio Loop"
                       }
-                      disabled={!occ.audioUrl}
-                      className={`h-6.5 w-6.5 rounded-full border flex items-center justify-center shrink-0 transition-all
-                        ${
-                          occ.audioUrl
-                            ? "bg-background border-border hover:bg-muted text-amber-500 cursor-pointer"
-                            : "bg-background border-border/10 text-muted-foreground/15 cursor-not-allowed"
-                        }`}
-                      title="Putar Audio Loop"
                     >
-                      <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
-                    </button>
+                      {activeLoopPlayId === occ.id ? (
+                        <Square className="h-2.5 w-2.5 fill-current" />
+                      ) : (
+                        <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
+                      )}
+                    </Button>
 
                     <p className="text-xs text-foreground leading-relaxed flex-1 pt-0.5">
                       {highlightText(occ.scriptText, selectedTerm.term)}
@@ -510,6 +554,16 @@ export function KeyTermDetailPanel({
           </div>
         )}
       </div>
+
+      {recordingTermType && (
+        <LineRecordingModal
+          isOpen={recordingTermType !== null}
+          onClose={() => setRecordingTermType(null)}
+          onSave={handleSaveRecordingBlob}
+          durationMs={3000}
+          audioSettings={audioSettings}
+        />
+      )}
     </div>
   );
 }

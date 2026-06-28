@@ -25,7 +25,8 @@ interface RawTranslation {
   key_term_id: string;
   id: string;
   translated_text: string | null;
-  recorded_audio_url: string | null;
+  key_term_audio_url: string | null;
+  key_term_bt_audio_url: string | null;
 }
 
 type TemplateJoin = {
@@ -160,7 +161,7 @@ export default async function LoopWorkspacePage({ params }: PageProps) {
   if (keyTermIds.length > 0) {
     const { data: transData } = await supabase
       .from("project_key_term_translations")
-      .select("key_term_id, id, translated_text, recorded_audio_url")
+      .select("key_term_id, id, translated_text, key_term_audio_url, key_term_bt_audio_url")
       .eq("project_id", projectId)
       .in("key_term_id", keyTermIds);
     translations = (transData || []) as unknown as RawTranslation[];
@@ -182,7 +183,8 @@ export default async function LoopWorkspacePage({ params }: PageProps) {
           ? {
               id: trans.id,
               translated_text: trans.translated_text,
-              recorded_audio_url: trans.recorded_audio_url,
+              key_term_audio_url: trans.key_term_audio_url,
+              key_term_bt_audio_url: trans.key_term_bt_audio_url,
             }
           : null,
       };

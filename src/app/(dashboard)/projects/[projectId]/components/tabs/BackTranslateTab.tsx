@@ -511,16 +511,45 @@ export function BackTranslateTab({
 
               {/* Right Column: Editable Back Translation textarea & Recording */}
               <div className="flex items-start gap-3 pl-4">
-                {/* Red Record Button */}
-                <button
-                  type="button"
-                  onClick={() => setRecordingLoopId(loop.id)}
-                  disabled={isLoading || isSavingAudio}
-                  className="h-6 w-6 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group shrink-0 mt-0.5 disabled:opacity-50 disabled:scale-100"
-                  title="Rekam Terjemahan Balik"
-                >
-                  <span className="w-2 h-2 rounded-full bg-white group-hover:scale-110 transition-transform" />
-                </button>
+                {/* Record + Play/Stop Buttons stacked vertically */}
+                <div className="flex flex-col items-center gap-1 shrink-0 mt-0.5">
+                  {/* Red Record Button */}
+                  <button
+                    type="button"
+                    onClick={() => setRecordingLoopId(loop.id)}
+                    disabled={isLoading || isSavingAudio}
+                    className="h-6 w-6 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group disabled:opacity-50 disabled:scale-100"
+                    title="Rekam Terjemahan Balik"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-white group-hover:scale-110 transition-transform" />
+                  </button>
+
+                  {/* Play/Stop Button */}
+                  {rec?.back_translation_audio_url && handlePlayAudio && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        "h-6 w-6 rounded-full border transition-colors cursor-pointer",
+                        playingAudioId === `bt-${rec.id}`
+                          ? "text-rose-500 border-rose-950/40 hover:bg-rose-950/20 bg-background/40 hover:text-rose-400"
+                          : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400",
+                      )}
+                      onClick={() => handlePlayAudio(rec.back_translation_audio_url!, `bt-${rec.id}`)}
+                      title={
+                        playingAudioId === `bt-${rec.id}`
+                          ? "Hentikan Rekaman BT"
+                          : "Putar Rekaman BT"
+                      }
+                    >
+                      {playingAudioId === `bt-${rec.id}` ? (
+                        <Square className="h-2.5 w-2.5 fill-current" />
+                      ) : (
+                        <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
+                      )}
+                    </Button>
+                  )}
+                </div>
 
                 {/* Back Translation Textarea — auto-resizes on mount and on input */}
                 <textarea
@@ -550,20 +579,6 @@ export function BackTranslateTab({
                   disabled={isLoading}
                   className="flex-1 min-w-[80px] bg-muted border border-border rounded px-2.5 py-1 text-xs text-foreground placeholder-muted-foreground/45 focus:outline-none focus:border-border focus:bg-background transition-colors resize-none overflow-hidden leading-relaxed"
                 />
-
-                {rec?.back_translation_audio_url && handlePlayAudio && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePlayAudio(rec.back_translation_audio_url!, `bt-${rec.id}`)}
-                    className={cn(
-                      "h-6 px-2 text-[9px] font-bold border-border rounded bg-muted/50 hover:bg-secondary text-foreground/90 gap-1 shrink-0 mt-0.5",
-                      playingAudioId === `bt-${rec.id}` && "bg-primary text-primary-foreground border-primary"
-                    )}
-                  >
-                    <Play className="h-2.5 w-2.5 fill-current" /> Rekaman BT
-                  </Button>
-                )}
               </div>
             </div>
           );

@@ -39,7 +39,8 @@ export interface LoopDB {
 export interface TranslationData {
   id?: string;
   translated_text?: string;
-  recorded_audio_url?: string;
+  key_term_audio_url?: string;
+  key_term_bt_audio_url?: string;
   back_translation?: string;
   notes?: string;
 }
@@ -58,6 +59,7 @@ export interface OccurrenceItem {
   scriptText: string;
   isReal: boolean;
   audioUrl?: string | null;
+  startTimeMs: number;
   lips: string;
   avatar: string;
 }
