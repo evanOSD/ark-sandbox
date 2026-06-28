@@ -44,3 +44,7 @@ archived-executed
 design
 
 template_prompt.txt
+next-work.txt
+next-prompt.txt
+get-openapi.js
+isi-table-templates.sql
