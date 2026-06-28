@@ -94,7 +94,7 @@ export function TemplateClient({ template, projects }: TemplateClientProps) {
           </Link>
           <Link href={`/templates/${template.id}/scenes`}>
             <Button className="font-semibold bg-primary text-primary-foreground hover:bg-primary-hover">
-              Kelola Scenes
+              Kelola Scenes di Template ini
             </Button>
           </Link>
         </div>

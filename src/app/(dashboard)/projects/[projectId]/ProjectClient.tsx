@@ -33,6 +33,7 @@ export interface KeyTerm {
   term: string;
   original_word: string | null;
   meaning_or_note: string | null;
+  category: string | null;
 }
 
 export interface Recording {

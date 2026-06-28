@@ -36,7 +36,7 @@ interface TermItem {
   term: string;
   original_word: string | null;
   meaning_or_note: string | null;
-  isReal: boolean;
+  category: string | null;
 }
 
 interface OccurrenceItem {
@@ -54,218 +54,6 @@ interface CategoryItem {
   terms: TermItem[];
 }
 
-const DEFAULT_SEMANTIC_CATEGORIES = [
-  {
-    name: "Semantic Groupings",
-    terms: [
-      {
-        term: "The Lord - in reference to God",
-        original: "kurios",
-        note: 'When the Old Testament scripture is quoted in the Greek New Testament, kurios most often corresponds to the name YHWH (e.g., Luke 4.8). Sometimes it also translates the Hebrew word adonai "lord, master" (e.g., Luke 4.18).',
-      },
-      {
-        term: "The Lord - referring to Jesus",
-        original: "kurios",
-        note: "Used in reference to Jesus Christ as Lord.",
-      },
-      {
-        term: "Lord - as a term to address Jesus",
-        original: "kurios",
-        note: "Used as a polite address to Jesus.",
-      },
-      {
-        term: "Teacher: as a term referring to or addressed to Jesus",
-        original: "didaskalos",
-        note: "Used when referring to Jesus as Teacher.",
-      },
-      {
-        term: "Master",
-        original: "epistates",
-        note: "Master, boss, commander.",
-      },
-      {
-        term: "Christ, Messiah",
-        original: "christos",
-        note: "The Anointed One, Messiah.",
-      },
-      { term: "God", original: "theos", note: "God, deity." },
-      { term: "Saviour", original: "soter", note: "One who saves, Savior." },
-      { term: "Son of God", original: "huios tou theou", note: "Son of God." },
-      {
-        term: "The Son of Man",
-        original: "huios tou anthropou",
-        note: "The Son of Man, referring to Jesus.",
-      },
-      {
-        term: "Holy Spirit (Spirit of God)",
-        original: "pneuma hagion",
-        note: "The Holy Spirit, Spirit of God.",
-      },
-    ],
-  },
-  {
-    name: "Supernatural beings",
-    terms: [
-      { term: "Angel", original: "angelos", note: "Messenger of God, angel." },
-      {
-        term: "Evil spirit, demon, devil",
-        original: "daimonion",
-        note: "Unclean spirit, evil spirit, demon.",
-      },
-      {
-        term: "Satan, the Devil (chief of the evil spirits)",
-        original: "satanas",
-        note: "Satan, the adversary, devil.",
-      },
-    ],
-  },
-  {
-    name: "People with religious function",
-    terms: [
-      {
-        term: "Apostle",
-        original: "apostolos",
-        note: "One sent forth, apostle.",
-      },
-      {
-        term: "Disciple, follower",
-        original: "mathetes",
-        note: "Learner, disciple, follower.",
-      },
-      {
-        term: "Prophet",
-        original: "prophetes",
-        note: "One who speaks for God, prophet.",
-      },
-      { term: "Priest", original: "hiereus", note: "Priest." },
-      {
-        term: "High Priest",
-        original: "archiereus",
-        note: "Chief priest, high priest.",
-      },
-      {
-        term: "Council, Sanhedrin",
-        original: "synedrion",
-        note: "Sanhedrin, council.",
-      },
-      {
-        term: "Teacher of the law, scribe",
-        original: "grammateus",
-        note: "Scribe, teacher of the law.",
-      },
-      {
-        term: "Levite",
-        original: "leueites",
-        note: "Levite, descendant of Levi.",
-      },
-      { term: "Pharisee", original: "pharisaios", note: "Pharisee." },
-    ],
-  },
-  {
-    name: "Places of worship",
-    terms: [
-      {
-        term: "Temple",
-        original: "hieron",
-        note: "Temple complex or sanctuary.",
-      },
-      { term: "Synagogue", original: "synagoge", note: "Synagogue, assembly." },
-    ],
-  },
-  {
-    name: "Messages, communications",
-    terms: [
-      { term: "Law, Laws", original: "nomos", note: "Law, custom, Torah." },
-      {
-        term: "Scripture, the writings, the Bible",
-        original: "graphe",
-        note: "Writing, scripture.",
-      },
-      {
-        term: "Gospel, good news",
-        original: "euangelion",
-        note: "Good news, gospel.",
-      },
-      { term: "The Word (of God)", original: "logos", note: "Word, message." },
-      {
-        term: "Commandment(s)",
-        original: "entole",
-        note: "Commandment, order.",
-      },
-    ],
-  },
-  {
-    name: "Secular rulers and people",
-    terms: [
-      { term: "Emperor, Caesar", original: "kaisar", note: "Caesar, emperor." },
-      {
-        term: "King, reign (as king)",
-        original: "basileus",
-        note: "King, ruler.",
-      },
-      { term: "Governor", original: "hegemon", note: "Governor, leader." },
-      {
-        term: "Jew, Israel, Hebrew",
-        original: "ioudaios",
-        note: "Jew, Jewish.",
-      },
-      {
-        term: "Gentile",
-        original: "ethnos",
-        note: "Nation, gentile, non-Jew.",
-      },
-    ],
-  },
-  {
-    name: "Eternal life / eternal death",
-    terms: [
-      {
-        term: "Kingdom of God",
-        original: "basileia tou theou",
-        note: "Kingdom of God, reign of God.",
-      },
-      {
-        term: "Repent",
-        original: "metanoeo",
-        note: "Change one's mind, repent.",
-      },
-      {
-        term: "Sin(s), to sin",
-        original: "hamartia",
-        note: "Sin, missing the mark.",
-      },
-      {
-        term: "Forgive, forgiveness",
-        original: "aphesis",
-        note: "Dismissal, release, forgiveness.",
-      },
-      {
-        term: "Live (eternally), life",
-        original: "zoe",
-        note: "Life, eternal life.",
-      },
-      {
-        term: "Save, salvation",
-        original: "soterian",
-        note: "Salvation, deliverance.",
-      },
-      {
-        term: "Believe in, faith",
-        original: "pistis",
-        note: "Faith, belief, trust.",
-      },
-    ],
-  },
-  {
-    name: "Mercy",
-    terms: [
-      { term: "Tax collector", original: "telones", note: "Tax collector." },
-      { term: "Tax(es)", original: "phoros", note: "Tax, tribute." },
-      { term: "Tithe", original: "dekate", note: "Tithe, tenth part." },
-    ],
-  },
-];
-
 export function KeyTermsTab({ activeScene, projectId }: KeyTermsTabProps) {
   const [selectedTerm, setSelectedTerm] = useState<TermItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -276,7 +64,7 @@ export function KeyTermsTab({ activeScene, projectId }: KeyTermsTabProps) {
   const [dbSupport, setDbSupport] = useState(false);
   const [isDataLoading, setIsDataLoading] = useState(true);
 
-  // Extract unique key terms from scene loops
+  // Extract unique key terms from scene loops (only real Supabase data)
   const allKeyTerms = React.useMemo(() => {
     const uniqueMap = new Map<string, TermItem>();
     if (activeScene && activeScene.loops) {
@@ -288,7 +76,7 @@ export function KeyTermsTab({ activeScene, projectId }: KeyTermsTabProps) {
               term: kt.term,
               original_word: kt.original_word,
               meaning_or_note: kt.meaning_or_note,
-              isReal: true,
+              category: kt.category ?? null,
             });
           }
         }
@@ -352,73 +140,42 @@ export function KeyTermsTab({ activeScene, projectId }: KeyTermsTabProps) {
     }
   }, [projectId]);
 
-  // Build filtered categories list
+  // Build filtered categories list — only from real Supabase data, grouped by category field
   const categoriesWithTerms: CategoryItem[] = React.useMemo(() => {
-    const filtered: CategoryItem[] = DEFAULT_SEMANTIC_CATEGORIES.map((cat) => {
-      const terms = cat.terms
-        .map((t) => {
-          const real = allKeyTerms.find(
-            (r) => r.term.toLowerCase().trim() === t.term.toLowerCase().trim(),
-          );
-          return {
-            id: real?.id || `mock-${t.term.replace(/\s+/g, "-").toLowerCase()}`,
-            term: real?.term || t.term,
-            original_word: real?.original_word || t.original,
-            meaning_or_note: real?.meaning_or_note || t.note,
-            isReal: !!real,
-          };
-        })
-        .filter((t) => {
-          if (!searchQuery) return true;
-          const normalizedQuery = searchQuery.toLowerCase();
-          return (
-            t.term.toLowerCase().includes(normalizedQuery) ||
-            (t.original_word &&
-              t.original_word.toLowerCase().includes(normalizedQuery))
-          );
-        });
+    const filteredTerms = allKeyTerms.filter((kt) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        kt.term.toLowerCase().includes(q) ||
+        (kt.original_word && kt.original_word.toLowerCase().includes(q)) ||
+        (kt.meaning_or_note && kt.meaning_or_note.toLowerCase().includes(q))
+      );
+    });
 
-      return {
-        name: cat.name,
-        terms,
-      };
-    }).filter((cat) => cat.terms.length > 0);
-
-    const defaultTermsSet = new Set(
-      DEFAULT_SEMANTIC_CATEGORIES.flatMap((cat) =>
-        cat.terms.map((t) => t.term.toLowerCase().trim()),
-      ),
-    );
-    const unmatchedRealTerms = allKeyTerms
-      .filter((r) => !defaultTermsSet.has(r.term.toLowerCase().trim()))
-      .filter((t) => {
-        if (!searchQuery) return true;
-        const normalizedQuery = searchQuery.toLowerCase();
-        return (
-          t.term.toLowerCase().includes(normalizedQuery) ||
-          (t.original_word &&
-            t.original_word.toLowerCase().includes(normalizedQuery))
-        );
-      })
-      .map((r) => ({
-        id: r.id,
-        term: r.term,
-        original_word: r.original_word,
-        meaning_or_note: r.meaning_or_note,
-        isReal: true,
-      }));
-
-    if (unmatchedRealTerms.length > 0) {
-      filtered.push({
-        name: "Glosarium Lainnya",
-        terms: unmatchedRealTerms,
-      });
+    // Group by category; uncategorized goes to "Belum Dikategorikan"
+    const groupMap = new Map<string, TermItem[]>();
+    for (const kt of filteredTerms) {
+      const groupName = kt.category?.trim() || "Belum Dikategorikan";
+      if (!groupMap.has(groupName)) {
+        groupMap.set(groupName, []);
+      }
+      groupMap.get(groupName)!.push(kt);
     }
 
-    return filtered;
+    // Sort groups: named categories alphabetically first, "Belum Dikategorikan" last
+    const entries = Array.from(groupMap.entries()).sort(([a], [b]) => {
+      if (a === "Belum Dikategorikan") return 1;
+      if (b === "Belum Dikategorikan") return -1;
+      return a.localeCompare(b);
+    });
+
+    return entries.map(([name, terms]) => ({
+      name,
+      terms: terms.sort((a, b) => a.term.localeCompare(b.term)),
+    }));
   }, [allKeyTerms, searchQuery]);
 
-  // Derive the active selected term (eliminates synchronous state-setting in effects)
+  // Derive the active selected term
   const activeTerm =
     selectedTerm ||
     categoriesWithTerms.find((c) => c.terms.length > 0)?.terms[0] ||
@@ -526,14 +283,8 @@ export function KeyTermsTab({ activeScene, projectId }: KeyTermsTabProps) {
     <div className="flex h-[calc(100vh-140px)] overflow-hidden bg-background text-foreground border-t border-border">
       {/* Left Column: Sidebar List */}
       <div className="w-[35%] border-r border-border flex flex-col h-full overflow-hidden bg-card/20 select-none">
-        {/* Sort By & Search Container */}
+        {/* Search Container */}
         <div className="p-3 border-b border-border space-y-2 bg-muted/20">
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-            <span className="font-semibold">Sort By</span>
-            <select className="bg-background border border-border rounded px-1.5 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500">
-              <option>Semantic Grouping</option>
-            </select>
-          </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
             <input
@@ -555,7 +306,9 @@ export function KeyTermsTab({ activeScene, projectId }: KeyTermsTabProps) {
             </div>
           ) : categoriesWithTerms.length === 0 ? (
             <div className="text-center p-6 text-xs text-muted-foreground italic">
-              Tidak ada kata kunci yang cocok.
+              {searchQuery
+                ? "Tidak ada kata kunci yang cocok dengan pencarian."
+                : "Tidak ada kata kunci yang terhubung ke scene ini."}
             </div>
           ) : (
             categoriesWithTerms.map((cat) => (
@@ -579,11 +332,6 @@ export function KeyTermsTab({ activeScene, projectId }: KeyTermsTabProps) {
                           }`}
                       >
                         <div className="truncate pr-2">{t.term}</div>
-                        {t.isReal && (
-                          <span className="text-[9px] font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 px-1 rounded-sm shrink-0">
-                            Scene
-                          </span>
-                        )}
                       </div>
                     );
                   })}
@@ -608,8 +356,9 @@ export function KeyTermsTab({ activeScene, projectId }: KeyTermsTabProps) {
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-xs select-none italic">
-            Pilih kata kunci dari daftar di sebelah kiri untuk melihat detail
-            terjemahan.
+            {allKeyTerms.length === 0
+              ? "Belum ada kata kunci yang ditautkan ke scene ini. Silakan tambahkan kata kunci melalui Key Terms Editor."
+              : "Pilih kata kunci dari daftar di sebelah kiri untuk melihat detail terjemahan."}
           </div>
         )}
       </div>
@@ -789,90 +538,27 @@ function KeyTermDetailPanel({
     }
   };
 
-  // Find loops where key term is present
+  // Find loops where key term is present (only real loops from Supabase)
   const occurrences: OccurrenceItem[] = React.useMemo(() => {
     const realLoops =
       activeScene?.loops.filter((loop) =>
         loop.key_terms?.some((kt) => kt.id === selectedTerm.id),
       ) || [];
 
-    if (realLoops.length > 0) {
-      return realLoops.map((loop) => ({
-        id: loop.id,
-        name: loop.sequence_number.toString().padStart(4, "0"),
-        scriptText:
-          loop.script_text_1 ||
-          loop.script_text_2 ||
-          loop.script_text_3 ||
-          loop.script_text_4 ||
-          "",
-        isReal: true,
-        audioUrl: loop.recording?.recorded_audio_url || null,
-        lips: loop.sequence_number % 2 === 0 ? "2 LIPS" : "1 LIPS",
-        avatar: loop.sequence_number % 3 === 0 ? "female" : "male",
-      }));
-    }
-
-    // Fallback occurrences matching the screenshot
-    const normalizedName = selectedTerm.term.toLowerCase();
-    if (normalizedName.includes("lord") || normalizedName.includes("tuhan")) {
-      return [
-        {
-          id: "mock-1",
-          name: "0010",
-          scriptText: "My soul magnifies the Lord,*",
-          isReal: false,
-          lips: "1 LIPS",
-          avatar: "female",
-        },
-        {
-          id: "mock-2",
-          name: "0017",
-          scriptText:
-            "A week later, when the time came for the Baby to be circumcised, He was given the name Jesus, and Joseph and Mary took the Child to Jerusalem to present Him to the Lord. In the temple there was a good and devout man named Simeon. The Holy Spirit had promised him that he would not die until he had seen the Christ.",
-          isReal: false,
-          lips: "",
-          avatar: "speaker",
-        },
-        {
-          id: "mock-3",
-          name: "0018",
-          scriptText:
-            "Oh Lord, now let Your servant depart in peace according to Your promise.",
-          isReal: false,
-          lips: "1 LIPS",
-          avatar: "male",
-        },
-        {
-          id: "mock-4",
-          name: "0049",
-          scriptText:
-            'It is written, "You shall worship the Lord your God, and Him only shall you serve."',
-          isReal: false,
-          lips: "1 LIPS",
-          avatar: "bearded",
-        },
-        {
-          id: "mock-5",
-          name: "0053",
-          scriptText: "And my spirit has rejoiced in God my Savior.**",
-          isReal: false,
-          lips: "2 LIPS",
-          avatar: "female",
-        },
-      ];
-    }
-
-    return [
-      {
-        id: "mock-gen-1",
-        name: "0005",
-        scriptText: `Contoh teks naskah berisi kata "${selectedTerm.term}" yang muncul dalam putaran rekaman cerita ini.`,
-        isReal: false,
-        lips: "1 LIPS",
-        avatar: "speaker",
-      },
-    ];
+    return realLoops.map((loop) => ({
+      id: loop.id,
+      name: loop.sequence_number.toString().padStart(4, "0"),
+      scriptText:
+        loop.script_text_1 ||
+        loop.script_text_2 ||
+        loop.script_text_3 ||
+        loop.script_text_4 ||
+        "",
+      isReal: true,
+      audioUrl: loop.recording?.recorded_audio_url || null,
+      lips: loop.sequence_number % 2 === 0 ? "2 LIPS" : "1 LIPS",
+      avatar: loop.sequence_number % 3 === 0 ? "female" : "male",
+    }));
   }, [selectedTerm, activeScene]);
 
   // Regex highlighting helper for terms inside occurrences
@@ -909,17 +595,22 @@ function KeyTermDetailPanel({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-1.5">
       {/* Header */}
       <div>
-        <h2 className="text-lg font-black text-foreground flex items-center gap-2">
+        <h2 className="text-lg font-black text-foreground flex items-center justify-center gap-2">
           <Tag className="h-5 w-5 text-amber-500 fill-amber-500/10" />
           {selectedTerm.term}
         </h2>
         {selectedTerm.original_word && (
-          <p className="text-xs text-muted-foreground italic font-mono mt-0.5">
+          <p className="text-xs text-muted-foreground flex items-center justify-center italic font-mono">
             ({selectedTerm.original_word})
           </p>
+        )}
+        {selectedTerm.category && (
+          <span className="text-[11px] mt-1.5 inline-block bg-muted border border-border/60 rounded text-muted-foreground font-semibold">
+            {selectedTerm.category}
+          </span>
         )}
       </div>
 
@@ -956,7 +647,7 @@ function KeyTermDetailPanel({
                 ${
                   audioUrl
                     ? "bg-background border-border hover:bg-muted text-amber-500 cursor-pointer"
-                    : "bg-background border-border/30 text-muted-foreground/30 cursor-not-allowed"
+                    : "bg-background border-border text-muted-foreground/30 cursor-not-allowed"
                 }`}
               title="Putar Audio"
             >
@@ -1039,79 +730,86 @@ function KeyTermDetailPanel({
           </span>
         </div>
 
-        <div className="space-y-4">
-          {occurrences.map((occ: OccurrenceItem, idx: number) => {
-            let avatarEl;
-            if (occ.avatar === "female") {
-              avatarEl = (
-                <div className="h-10 w-10 rounded border border-border flex flex-col items-center justify-center bg-pink-500/10 text-pink-500 shrink-0 text-xs select-none">
-                  <User className="h-5 w-5" />
-                </div>
-              );
-            } else if (occ.avatar === "male") {
-              avatarEl = (
-                <div className="h-10 w-10 rounded border border-border flex flex-col items-center justify-center bg-blue-500/10 text-blue-500 shrink-0 text-xs select-none">
-                  <User className="h-5 w-5" />
-                </div>
-              );
-            } else if (occ.avatar === "bearded") {
-              avatarEl = (
-                <div className="h-10 w-10 rounded border border-border flex flex-col items-center justify-center bg-amber-500/10 text-amber-500 shrink-0 text-xs select-none">
-                  <User className="h-5 w-5 animate-pulse" />
-                </div>
-              );
-            } else {
-              avatarEl = (
-                <div className="h-10 w-10 rounded border border-border flex flex-col items-center justify-center bg-zinc-500/10 text-zinc-500 shrink-0 text-xs select-none">
-                  <Volume2 className="h-5 w-5" />
-                </div>
-              );
-            }
+        {occurrences.length === 0 ? (
+          <div className="text-xs text-muted-foreground italic">
+            Kata kunci ini belum ditautkan ke loop manapun di scene yang sedang
+            aktif.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {occurrences.map((occ: OccurrenceItem, idx: number) => {
+              let avatarEl;
+              if (occ.avatar === "female") {
+                avatarEl = (
+                  <div className="h-10 w-10 rounded border border-border flex flex-col items-center justify-center bg-pink-500/10 text-pink-500 shrink-0 text-xs select-none">
+                    <User className="h-5 w-5" />
+                  </div>
+                );
+              } else if (occ.avatar === "male") {
+                avatarEl = (
+                  <div className="h-10 w-10 rounded border border-border flex flex-col items-center justify-center bg-blue-500/10 text-blue-500 shrink-0 text-xs select-none">
+                    <User className="h-5 w-5" />
+                  </div>
+                );
+              } else if (occ.avatar === "bearded") {
+                avatarEl = (
+                  <div className="h-10 w-10 rounded border border-border flex flex-col items-center justify-center bg-amber-500/10 text-amber-500 shrink-0 text-xs select-none">
+                    <User className="h-5 w-5 animate-pulse" />
+                  </div>
+                );
+              } else {
+                avatarEl = (
+                  <div className="h-10 w-10 rounded border border-border flex flex-col items-center justify-center bg-zinc-500/10 text-zinc-500 shrink-0 text-xs select-none">
+                    <Volume2 className="h-5 w-5" />
+                  </div>
+                );
+              }
 
-            return (
-              <div
-                key={occ.id || idx}
-                className="pb-4 border-b border-border/40 last:border-0 flex items-start gap-4"
-              >
-                {/* Avatar & Badges */}
-                <div className="flex flex-col items-center gap-1 shrink-0 select-none">
-                  {avatarEl}
-                  {occ.lips && (
-                    <span className="text-[8px] font-extrabold text-red-500 bg-red-500/10 border border-red-500/20 px-1 rounded-sm">
-                      {occ.lips}
+              return (
+                <div
+                  key={occ.id || idx}
+                  className="pb-4 border-b border-border/40 last:border-0 flex items-start gap-4"
+                >
+                  {/* Avatar & Badges */}
+                  <div className="flex flex-col items-center gap-1 shrink-0 select-none">
+                    {avatarEl}
+                    {occ.lips && (
+                      <span className="text-[8px] font-extrabold text-red-500 bg-red-500/10 border border-red-500/20 px-1 rounded-sm">
+                        {occ.lips}
+                      </span>
+                    )}
+                    <span className="text-[10px] font-mono text-muted-foreground mt-0.5">
+                      {occ.name}
                     </span>
-                  )}
-                  <span className="text-[10px] font-mono text-muted-foreground mt-0.5">
-                    {occ.name}
-                  </span>
-                </div>
+                  </div>
 
-                {/* Occurrences Audio Trigger + Script Text */}
-                <div className="flex-1 flex items-start gap-3 mt-1.5">
-                  <button
-                    onClick={() =>
-                      occ.audioUrl && togglePlayAudio(occ.audioUrl)
-                    }
-                    disabled={!occ.audioUrl}
-                    className={`h-6.5 w-6.5 rounded-full border flex items-center justify-center shrink-0 transition-all
-                      ${
-                        occ.audioUrl
-                          ? "bg-background border-border hover:bg-muted text-amber-500 cursor-pointer"
-                          : "bg-background border-border/10 text-muted-foreground/15 cursor-not-allowed"
-                      }`}
-                    title="Putar Audio Loop"
-                  >
-                    <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
-                  </button>
+                  {/* Occurrences Audio Trigger + Script Text */}
+                  <div className="flex-1 flex items-start gap-3 mt-1.5">
+                    <button
+                      onClick={() =>
+                        occ.audioUrl && togglePlayAudio(occ.audioUrl)
+                      }
+                      disabled={!occ.audioUrl}
+                      className={`h-6.5 w-6.5 rounded-full border flex items-center justify-center shrink-0 transition-all
+                        ${
+                          occ.audioUrl
+                            ? "bg-background border-border hover:bg-muted text-amber-500 cursor-pointer"
+                            : "bg-background border-border/10 text-muted-foreground/15 cursor-not-allowed"
+                        }`}
+                      title="Putar Audio Loop"
+                    >
+                      <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
+                    </button>
 
-                  <p className="text-xs text-foreground leading-relaxed flex-1 pt-0.5">
-                    {highlightText(occ.scriptText, selectedTerm.term)}
-                  </p>
+                    <p className="text-xs text-foreground leading-relaxed flex-1 pt-0.5">
+                      {highlightText(occ.scriptText, selectedTerm.term)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

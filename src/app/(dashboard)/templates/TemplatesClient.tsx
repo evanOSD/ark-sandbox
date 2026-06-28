@@ -193,7 +193,7 @@ export function TemplatesClient({
                           size="sm"
                           className="gap-2 font-bold text-xs border-primary/20 hover:border-primary/50 text-primary hover:bg-primary/5 shadow-xs"
                         >
-                          Kelola Scene <ArrowRight className="h-3.5 w-3.5" />
+                          Edit Template <ArrowRight className="h-3.5 w-3.5" />
                         </Button>
                       </Link>
                     </div>

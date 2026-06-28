@@ -650,8 +650,17 @@ export function EditTemplateClient({ template }: EditTemplateClientProps) {
               )}
             </div>
             <p className="text-[11px] text-muted-foreground mt-1 ml-7">
-              Labeli setiap sumber audio referensi master (contoh: TB, BIMK,
-              TSI).
+              Labeli setiap sumber audio referensi master (contoh: Shellabear,
+              BIMK, TSI).
+            </p>
+            <p className="text-[11px] text-warning mt-1 ml-7">
+              <b>
+                <u>
+                  Pastikan untuk menggunakan video yang ada di storage server
+                  terlebih dahulu, <br></br>daripada mengupload file baru untuk
+                  mengHEMAT MEDIA STORAGE SERVER.
+                </u>
+              </b>
             </p>
           </div>
 
