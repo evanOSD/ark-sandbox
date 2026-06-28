@@ -35,7 +35,7 @@ export async function login(formData: FormData) {
     password,
   })
 
-  console.log("LOGIN ATTEMPT:", email, "RESULT:", { data: !!data?.user, error })
+
 
   if (error) {
     redirect(`/login?message=${encodeURIComponent(error.message)}`)
@@ -61,11 +61,11 @@ export async function login(formData: FormData) {
         email: email,
         role: isEvan ? 'admin' : 'user'
       })
-      console.log("Inserted missing public user row for:", email, "with role:", isEvan ? 'admin' : 'user')
+
     } else if (isEvan && existingUser.role !== 'admin') {
       // Upgrade role to admin for evan@osdindonesia.com
       await supabase.from('users').update({ role: 'admin' }).eq('id', userId)
-      console.log("Upgraded user role to admin for:", email)
+
     }
   }
 
@@ -89,7 +89,7 @@ export async function signup(formData: FormData) {
     password,
   })
 
-  console.log("SIGNUP ATTEMPT:", email, "RESULT:", { user: !!data?.user, error })
+
 
   if (error) {
     redirect(`/signup?message=${encodeURIComponent(error.message)}`)

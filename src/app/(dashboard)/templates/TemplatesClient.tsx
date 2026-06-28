@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Film, Plus, Trash2, ArrowRight } from "lucide-react";
+import { Film, Plus, Trash2, ArrowRight, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { deleteTemplate } from "./actions";
 import { ErrorModal } from "@/components/shared/ErrorModal";
@@ -33,23 +33,21 @@ export function TemplatesClient({
   const [errorModalOpen, setErrorModalOpen] = useState(false);
   const [errorModalDesc, setErrorModalDesc] = useState("");
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
-  const [templateToDelete, setTemplateToDelete] = useState<Template | null>(null);
+  const [templateToDelete, setTemplateToDelete] = useState<Template | null>(
+    null,
+  );
   const [isDeleting, setIsDeleting] = useState(false);
 
   const handleConfirmDelete = async () => {
     if (!templateToDelete) return;
     setIsDeleting(true);
     try {
-      console.log("[TemplatesClient] Konfirmasi disetujui. Memulai penghapusan... ID:", templateToDelete.id);
       await deleteTemplate(templateToDelete.id);
-      console.log("[TemplatesClient] Template berhasil dihapus. ID:", templateToDelete.id);
+
       router.refresh();
     } catch (err) {
-      console.error("[TemplatesClient] Gagal menghapus template:", err);
       setErrorModalDesc(
-        err instanceof Error
-          ? err.message
-          : "Gagal menghapus template",
+        err instanceof Error ? err.message : "Gagal menghapus template",
       );
       setErrorModalOpen(true);
     } finally {
@@ -63,8 +61,13 @@ export function TemplatesClient({
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Template Master</h1>
-          <p className="text-muted-foreground mt-1">
+          {/* Mengubah text-3xl menjadi text-base (16px) */}
+          <h1 className="text-base font-bold tracking-tight">
+            Template Master
+          </h1>
+
+          {/* Menambahkan text-xs (12px) */}
+          <p className="text-muted-foreground text-xs mt-1">
             {isAdmin
               ? "Kelola template master untuk mengunggah media referensi video/audio penerjemahan."
               : "Daftar template master penerjemahan lisan."}
@@ -74,8 +77,18 @@ export function TemplatesClient({
         {/* Action Buttons (Admin Only) */}
         {isAdmin && (
           <div className="flex items-center gap-3">
+            <Link href="/templates/keyterms">
+              <Button
+                variant="outline"
+                size="sm"
+                className="font-semibold gap-2"
+              >
+                <Tag className="h-4 w-4 text-amber-500 fill-amber-500/10" /> Key
+                Terms Editor
+              </Button>
+            </Link>
             <Link href="/templates/create">
-              <Button className="font-semibold gap-2 text-xs">
+              <Button size="sm" className="font-semibold gap-2">
                 <Plus className="h-4 w-4" /> Tambah Template
               </Button>
             </Link>
@@ -156,12 +169,11 @@ export function TemplatesClient({
                         <Button
                           variant="destructive"
                           size="icon"
-                           onClick={() => {
-                            console.log("[TemplatesClient] Tombol Hapus Template diklik. ID:", t.id, "Nama:", t.name);
-                            
+                          onClick={() => {
                             if (t.total_projects && t.total_projects > 0) {
-                              console.warn("[TemplatesClient] Penghapusan ditolak. Template sedang digunakan di project. Total project:", t.total_projects);
-                              setErrorModalDesc("Template ini tidak dapat dihapus karena sedang digunakan di project.");
+                              setErrorModalDesc(
+                                "Template ini tidak dapat dihapus karena sedang digunakan di project.",
+                              );
                               setErrorModalOpen(true);
                               return;
                             }

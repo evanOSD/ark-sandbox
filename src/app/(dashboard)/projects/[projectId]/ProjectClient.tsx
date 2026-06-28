@@ -814,7 +814,7 @@ export function ProjectClient({
               )}
 
               {activeTab === "keyTerms" && (
-                <KeyTermsTab activeScene={activeScene} />
+                <KeyTermsTab activeScene={activeScene} projectId={project.id} />
               )}
 
               {["backTranslate", "consult"].includes(activeTab) && (
@@ -849,6 +849,7 @@ export function ProjectClient({
           if (!open) handleCloseModal();
         }}
       >
+        {/* Lebar & Tinggi Audio Loop Editor */}
         <DialogContent
           style={{
             width: "1000px",

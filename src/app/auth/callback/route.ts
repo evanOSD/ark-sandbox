@@ -32,11 +32,11 @@ export async function GET(request: Request) {
             email: email,
             role: isEvan ? 'admin' : 'user'
           })
-          console.log("OAuth Sync: Inserted public user row for:", email)
+
         } else if (isEvan && existingUser.role !== 'admin') {
           // Naikkan menjadi admin
           await supabase.from('users').update({ role: 'admin' }).eq('id', userId)
-          console.log("OAuth Sync: Upgraded user role to admin for:", email)
+
         }
       }
     }

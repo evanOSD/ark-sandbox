@@ -1,6 +1,7 @@
 import React from "react";
 import { Tag } from "lucide-react";
 import { Loop } from "@/types";
+import { renderFormattedText } from "@/utils/text-formatting";
 
 interface KeyTermsPanelProps {
   loop: Loop;
@@ -40,7 +41,7 @@ export function KeyTermsPanel({ loop }: KeyTermsPanelProps) {
               </div>
               {term.meaning_or_note && (
                 <p className="text-xs text-muted-foreground italic leading-relaxed whitespace-pre-line">
-                  Definisi: {term.meaning_or_note}
+                  Definisi: {renderFormattedText(term.meaning_or_note)}
                 </p>
               )}
             </div>

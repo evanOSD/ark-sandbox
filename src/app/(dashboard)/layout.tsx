@@ -9,7 +9,9 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     redirect("/login");
@@ -25,11 +27,12 @@ export default async function DashboardLayout({
   const isEvan = user.email?.toLowerCase() === "evan@osdindonesia.com";
 
   if (!dbUser) {
-    const username = user.user_metadata?.username || user.email?.split("@")[0] || "user";
+    const username =
+      user.user_metadata?.username || user.email?.split("@")[0] || "user";
     const email = user.email || "";
     const role = isEvan ? "admin" : "user";
 
-    const { data: insertedUser, error: insertError } = await supabase
+    const { data: insertedUser } = await supabase
       .from("users")
       .insert({
         id: user.id,
@@ -39,13 +42,7 @@ export default async function DashboardLayout({
       })
       .select()
       .single();
-    
-    if (insertError) {
-      console.error("CRITICAL: FAILED TO INSERT USER PROFILE:", insertError);
-    } else {
-      console.log("SUCCESSFULLY INSERTED USER PROFILE:", email);
-    }
-    
+
     dbUser = insertedUser;
   } else if (isEvan && dbUser.role !== "admin") {
     // Force role to admin for evan@osdindonesia.com
@@ -55,11 +52,11 @@ export default async function DashboardLayout({
       .eq("id", user.id)
       .select()
       .single();
-    
+
     dbUser = updatedUser;
   }
 
-  const role = isEvan ? "admin" : (dbUser?.role || "user");
+  const role = isEvan ? "admin" : dbUser?.role || "user";
   const username = dbUser?.username || user.email?.split("@")[0] || "User";
 
   // Read sidebar state preference from cookies
@@ -67,7 +64,11 @@ export default async function DashboardLayout({
   const sidebarState = cookieStore.get("sidebar_state")?.value || "expanded";
 
   return (
-    <DashboardLayoutClient role={role} username={username} initialState={sidebarState}>
+    <DashboardLayoutClient
+      role={role}
+      username={username}
+      initialState={sidebarState}
+    >
       {children}
     </DashboardLayoutClient>
   );

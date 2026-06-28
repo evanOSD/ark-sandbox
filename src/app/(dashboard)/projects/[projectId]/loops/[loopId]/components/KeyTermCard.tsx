@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { WavRecorder } from "@/lib/wav-recorder";
 import { saveKeyTermTranslation } from "../../actions";
 import { KeyTerm } from "../WorkspaceClient";
+import { renderFormattedText } from "@/utils/text-formatting";
 
 interface KeyTermCardProps {
   term: KeyTerm;
@@ -83,7 +84,7 @@ export function KeyTermCard({ term, projectId }: KeyTermCardProps) {
       </div>
       {term.meaning_or_note && (
         <p className="text-xs text-muted-foreground italic leading-relaxed whitespace-pre-line">
-          Definisi: {term.meaning_or_note}
+          Definisi: {renderFormattedText(term.meaning_or_note)}
         </p>
       )}
 

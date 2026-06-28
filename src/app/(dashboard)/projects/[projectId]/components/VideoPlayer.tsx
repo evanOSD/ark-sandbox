@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import {
-  Film,
+  PictureInPicture,
   Pause,
   Play,
   Square,
@@ -108,7 +108,7 @@ export function VideoPlayer({
     const updateTimecode = () => {
       const seconds = video.currentTime || 0;
       const fps = 25; // Constant 25 fps (standard for the project videos)
-      
+
       const totalFrames = Math.floor(seconds * fps);
       const hours = Math.floor(totalFrames / (3600 * fps));
       const minutes = Math.floor((totalFrames % (3600 * fps)) / (60 * fps));
@@ -117,7 +117,10 @@ export function VideoPlayer({
 
       const pad = (val: number) => String(val).padStart(2, "0");
       if (onTimecodeUpdateRef.current) {
-        onTimecodeUpdateRef.current(`${pad(hours)}:${pad(minutes)}:${pad(secs)}:${pad(frames)}`, fps);
+        onTimecodeUpdateRef.current(
+          `${pad(hours)}:${pad(minutes)}:${pad(secs)}:${pad(frames)}`,
+          fps,
+        );
       }
     };
 
@@ -181,7 +184,7 @@ export function VideoPlayer({
           />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-muted-foreground select-text">
-            <Film className="h-14 w-14 stroke-[1.2] animate-pulse select-none" />
+            <PictureInPicture className="h-14 w-14 stroke-[1.2] animate-pulse select-none" />
             <span className="text-xs font-bold">
               Video referensi tidak terunggah
             </span>
@@ -210,7 +213,7 @@ export function VideoPlayer({
           className="h-7 w-7 text-foreground/80 border border-zinc-850/50 hover:bg-zinc-800/20 bg-background/40 hover:text-foreground rounded-full flex items-center justify-center transition-colors shrink-0 cursor-pointer"
           title="Toggle Picture-in-Picture"
         >
-          <Film className="h-4 w-4" />
+          <PictureInPicture className="h-4 w-4" />
         </button>
 
         {/* TOMBOL FULLSCREEN & EXIT DENGAN INDIKATOR DINAMIS */}
@@ -239,7 +242,7 @@ export function VideoPlayer({
             "h-7 w-7 border rounded-full flex items-center justify-center transition-colors shrink-0 cursor-pointer",
             isVideoPlaying
               ? "text-rose-500 border-rose-950/40 hover:bg-rose-950/20 bg-background/40 hover:text-rose-400"
-              : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400"
+              : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400",
           )}
           title={isVideoPlaying ? "Pause" : "Play Scene"}
         >
