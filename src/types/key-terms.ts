@@ -35,3 +35,35 @@ export interface LoopDB {
   sequence_number: number;
   scene_id: string;
 }
+
+export interface TranslationData {
+  id?: string;
+  translated_text?: string;
+  recorded_audio_url?: string;
+  back_translation?: string;
+  notes?: string;
+}
+
+export interface TermItem {
+  id: string;
+  term: string;
+  original_word: string | null;
+  meaning_or_note: string | null;
+  category: string | null;
+}
+
+export interface OccurrenceItem {
+  id: string;
+  name: string;
+  scriptText: string;
+  isReal: boolean;
+  audioUrl?: string | null;
+  lips: string;
+  avatar: string;
+}
+
+export interface CategoryItem {
+  name: string;
+  terms: TermItem[];
+}
+
