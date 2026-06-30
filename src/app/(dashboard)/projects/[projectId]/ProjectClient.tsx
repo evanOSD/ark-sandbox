@@ -1002,7 +1002,6 @@ export function ProjectClient({
                     }
                   }}
                   isShowScriptAllowed={isShowScriptAllowed}
-                  selectedScripts={selectedScripts}
                   showTextScript={showTextScript}
                   allowedScripts={allowedScripts}
                   audioSources={audioSources}

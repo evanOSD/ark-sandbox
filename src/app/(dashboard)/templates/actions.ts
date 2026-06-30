@@ -299,6 +299,25 @@ export async function addKeyTermToLoop(loopId: string, term: string, originalWor
   revalidatePath(`/templates/${templateId}`)
 }
 
+export async function bindKeyTermToLoop(loopId: string, keyTermId: string, templateId: string) {
+  const supabase = await createClient()
+
+  if (!keyTermId) {
+    throw new Error('Kata kunci wajib dipilih')
+  }
+
+  const { error: bindError } = await supabase.from('loop_key_terms').insert({
+    template_loop_id: loopId,
+    key_term_id: keyTermId,
+  })
+
+  if (bindError) {
+    throw new Error(bindError.message)
+  }
+
+  revalidatePath(`/templates/${templateId}`)
+}
+
 export async function removeKeyTermFromLoop(loopId: string, termId: string, templateId: string) {
   const supabase = await createClient()
 

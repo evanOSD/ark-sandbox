@@ -310,9 +310,22 @@ export function ManageScenesClient({
                       />
                     </td>
                     <td className="px-4 py-2 text-center">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
-                        {scene.loopCount} Loop
-                      </span>
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                          {scene.loopCount} Loop
+                        </span>
+                        {!scene.id.startsWith("new-") && !isDeleted && (
+                          <Link href={`/templates/${templateId}/scenes/${scene.id}/edit`}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-[10px] font-semibold px-2 py-0 cursor-pointer"
+                            >
+                              Edit Loops
+                            </Button>
+                          </Link>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2 text-right">
                       <Button

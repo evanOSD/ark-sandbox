@@ -14,7 +14,6 @@ interface KeyTermsTabProps {
   handlePlayLoop: (loopId: string, startMs: number, audioUrl?: string) => void;
   activeLoopPlayId: string | null;
   isShowScriptAllowed: boolean;
-  selectedScripts: number[];
   showTextScript: boolean;
   allowedScripts: string;
   audioSources: Array<{ name: string; url: string }>;
@@ -28,7 +27,6 @@ export function KeyTermsTab({
   handlePlayLoop,
   activeLoopPlayId,
   isShowScriptAllowed,
-  selectedScripts,
   showTextScript,
   allowedScripts,
   audioSources,
@@ -298,7 +296,6 @@ export function KeyTermsTab({
             handlePlayLoop={handlePlayLoop}
             activeLoopPlayId={activeLoopPlayId}
             isShowScriptAllowed={isShowScriptAllowed}
-            selectedScripts={selectedScripts}
             showTextScript={showTextScript}
             allowedScripts={allowedScripts}
             audioSources={audioSources}

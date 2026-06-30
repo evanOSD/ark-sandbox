@@ -114,5 +114,17 @@ export default async function EditScenePage({ params }: PageProps) {
     loops: formattedLoops,
   };
 
-  return <EditSceneClient scene={formattedScene} templateId={templateId} />;
+  // Fetch all key terms from key_terms table to select from
+  const { data: allKeyTerms } = await supabase
+    .from("key_terms")
+    .select("id, term, original_word, meaning_or_note")
+    .order("term", { ascending: true });
+
+  return (
+    <EditSceneClient
+      scene={formattedScene}
+      templateId={templateId}
+      allAvailableKeyTerms={allKeyTerms || []}
+    />
+  );
 }

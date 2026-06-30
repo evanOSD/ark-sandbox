@@ -24,9 +24,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { LabeledMultiSelect, LabeledMultiSelectOption } from "@/components/shared/LabeledMultiSelect";
 import { formatMsToTimecode, parseTimecodeToMs } from "@/lib/timecode";
 import {
-  addKeyTermToLoop,
+  bindKeyTermToLoop,
   removeKeyTermFromLoop,
   saveLoopsBulk,
 } from "../../../../actions";
@@ -58,9 +59,10 @@ interface EditSceneClientProps {
     sequence_number: number;
     loops: LoopItem[];
   };
+  allAvailableKeyTerms: KeyTerm[];
 }
 
-export function EditSceneClient({ templateId, scene }: EditSceneClientProps) {
+export function EditSceneClient({ templateId, scene, allAvailableKeyTerms }: EditSceneClientProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -82,11 +84,7 @@ export function EditSceneClient({ templateId, scene }: EditSceneClientProps) {
   // Key Term Dialog States
   const [isTermDialogOpen, setIsTermDialogOpen] = useState(false);
   const [activeLoopId, setActiveLoopId] = useState<string | null>(null);
-
-  // Key Term Form States
-  const [termText, setTermText] = useState("");
-  const [termOriginal, setTermOriginal] = useState("");
-  const [termNote, setTermNote] = useState("");
+  const [selectedKeyTermIds, setSelectedKeyTermIds] = useState<string[]>([]);
 
   // Determine if there are unsaved changes
   const hasChanges = useMemo(() => {
@@ -328,16 +326,20 @@ export function EditSceneClient({ templateId, scene }: EditSceneClientProps) {
   const handleAddKeyTerm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeLoopId) return;
+    if (selectedKeyTermIds.length === 0) {
+      alert("Silakan pilih kata kunci terlebih dahulu.");
+      return;
+    }
     setIsLoading(true);
     try {
-      await addKeyTermToLoop(activeLoopId, termText, termOriginal, termNote, templateId);
+      for (const keyTermId of selectedKeyTermIds) {
+        await bindKeyTermToLoop(activeLoopId, keyTermId, templateId);
+      }
       setIsTermDialogOpen(false);
-      setTermText("");
-      setTermOriginal("");
-      setTermNote("");
+      setSelectedKeyTermIds([]);
       router.refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Gagal menambahkan kata kunci");
+      alert(err instanceof Error ? err.message : "Gagal menautkan kata kunci");
     } finally {
       setIsLoading(false);
     }
@@ -381,6 +383,16 @@ export function EditSceneClient({ templateId, scene }: EditSceneClientProps) {
             {scene.name}
           </span>
         </div>
+
+        <Link href={`/templates/keyterms`}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs font-bold bg-background border-border hover:bg-secondary cursor-pointer"
+          >
+            Pergi ke Key Terms Editor
+          </Button>
+        </Link>
       </div>
 
       {/* ─── Page title ─── */}
@@ -623,45 +635,69 @@ export function EditSceneClient({ templateId, scene }: EditSceneClientProps) {
 
       {/* ─── Dialog for Adding Key Term ─── */}
       <Dialog open={isTermDialogOpen} onOpenChange={setIsTermDialogOpen}>
-        <DialogContent className="sm:max-w-[400px]">
-          <form onSubmit={handleAddKeyTerm}>
-            <DialogHeader>
-              <DialogTitle>Tempel Kata Kunci</DialogTitle>
+        <DialogContent className="sm:max-w-[40%] max-h-[85vh] flex flex-col">
+          <form onSubmit={handleAddKeyTerm} className="flex flex-col flex-1 min-h-0">
+            <DialogHeader className="shrink-0">
+              <DialogTitle>Tautkan Kata Kunci</DialogTitle>
               <DialogDescription>
-                Tambahkan kata kunci penting untuk referensi penerjemah di loop ini.
+                Pilih satu atau beberapa kata kunci penting yang sudah terdaftar untuk ditautkan pada loop ini.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+            <div className="flex-1 overflow-y-auto py-4 space-y-4 min-h-0 pr-0.5">
               <div className="space-y-2">
-                <Label htmlFor="t-term">Kata Kunci (Induk)</Label>
-                <Input
-                  id="t-term"
-                  value={termText}
-                  onChange={(e) => setTermText(e.target.value)}
-                  placeholder="Misal: Kerajaan Allah, Bait Suci"
-                  required
-                />
+                <Label>Pilih Kata Kunci</Label>
+                {(() => {
+                  const activeLoop = loops.find((l) => l.id === activeLoopId);
+                  const existingTermIds = activeLoop ? activeLoop.key_terms.map((kt) => kt.id) : [];
+                  const selectableKeyTerms = allAvailableKeyTerms.filter(
+                    (kt) => !existingTermIds.includes(kt.id)
+                  );
+
+                  if (selectableKeyTerms.length > 0) {
+                    const multiSelectOptions: LabeledMultiSelectOption[] = selectableKeyTerms.map((kt) => ({
+                      value: kt.id,
+                      label: kt.term,
+                      description: kt.meaning_or_note || undefined,
+                      badge: kt.original_word || undefined,
+                    }));
+
+                    return (
+                      <LabeledMultiSelect
+                        options={multiSelectOptions}
+                        values={selectedKeyTermIds}
+                        onChange={setSelectedKeyTermIds}
+                        searchPlaceholder="Cari kata kunci..."
+                        emptyText="Tidak ada kata kunci yang cocok."
+                        className="border rounded-lg bg-background p-2"
+                      />
+                    );
+                  }
+
+                  return (
+                    <div className="text-xs text-muted-foreground bg-muted p-3 text-center rounded-lg border border-border/50 font-medium">
+                      Tidak ada kata kunci baru yang tersedia untuk ditautkan di loop ini.
+                    </div>
+                  );
+                })()}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="t-orig">Kata Asli/Bahasa Asal (Opsional)</Label>
-                <Input
-                  id="t-orig"
-                  value={termOriginal}
-                  onChange={(e) => setTermOriginal(e.target.value)}
-                  placeholder="Misal: Basileia tou Theou"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="t-note">Definisi/Catatan Penting (Opsional)</Label>
-                <Input
-                  id="t-note"
-                  value={termNote}
-                  onChange={(e) => setTermNote(e.target.value)}
-                  placeholder="Catatan makna kata kunci..."
-                />
+
+              <div className="rounded-lg bg-primary/5 border border-border/60 p-3 space-y-2 shrink-0">
+                <p className="text-[11px] text-muted-foreground leading-normal font-medium">
+                  Jika kata kunci yang Anda cari tidak tersedia, silakan tambahkan kata kunci baru terlebih dahulu melalui <strong>Key Terms Editor</strong>.
+                </p>
+                <Link href={`/templates/keyterms`} target="_blank">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-7 text-[10px] font-bold gap-1 mt-1 bg-background border-border hover:bg-secondary cursor-pointer"
+                  >
+                    Pergi ke Key Terms Editor
+                  </Button>
+                </Link>
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="shrink-0 pt-2 border-t border-border/40">
               <Button
                 type="button"
                 variant="outline"
@@ -670,7 +706,7 @@ export function EditSceneClient({ templateId, scene }: EditSceneClientProps) {
                 Batal
               </Button>
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Menambahkan..." : "Tempel Kata"}
+                {isLoading ? "Menautkan..." : "Tautkan Kata"}
               </Button>
             </DialogFooter>
           </form>
