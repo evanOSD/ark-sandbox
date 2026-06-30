@@ -18,8 +18,13 @@ interface KeyTermDetailPanelProps {
   activeScene: Scene | null;
   onSaveTranslation: (fields: Partial<TranslationData>) => Promise<void>;
   isSaving: boolean;
-  handlePlayLoop: (loopId: string, startMs: number) => void;
+  handlePlayLoop: (loopId: string, startMs: number, audioUrl?: string) => void;
   activeLoopPlayId: string | null;
+  isShowScriptAllowed: boolean;
+  showTextScript: boolean;
+  allowedScripts: string;
+  audioSources: Array<{ name: string; url: string }>;
+  activeAudioUrl: string;
 }
 
 export function KeyTermDetailPanel({
@@ -31,6 +36,11 @@ export function KeyTermDetailPanel({
   isSaving,
   handlePlayLoop,
   activeLoopPlayId,
+  isShowScriptAllowed,
+  showTextScript,
+  allowedScripts,
+  audioSources,
+  activeAudioUrl,
 }: KeyTermDetailPanelProps) {
   const [transInput, setTransInput] = useState(
     initialTranslation?.translated_text || "",
@@ -225,7 +235,34 @@ export function KeyTermDetailPanel({
     startTimeMs: loop.start_time_ms,
     lips: loop.sequence_number % 2 === 0 ? "2 LIPS" : "1 LIPS",
     avatar: loop.sequence_number % 3 === 0 ? "female" : "male",
+    loop,
   }));
+
+  // Determine which script indices to show per occurrence based on role/settings
+  const allowedNames = allowedScripts ? allowedScripts.split(",").filter(Boolean) : [];
+  let displayedIndices: number[] = [];
+  let hideScriptText = false;
+
+  if (isShowScriptAllowed) {
+    // Admin/Consultant: always show ALL templates regardless of any setting
+    displayedIndices = audioSources.length > 0 ? audioSources.map((_, idx) => idx) : [0];
+  } else {
+    if (showTextScript) {
+      // User with access: only allowed templates, with text visible
+      audioSources.forEach((src, idx) => {
+        if (allowedNames.includes(src.name)) {
+          displayedIndices.push(idx);
+        }
+      });
+      if (displayedIndices.length === 0 && audioSources.length > 0) {
+        displayedIndices.push(0);
+      }
+    } else {
+      // User without access: show all template labels but hide script text
+      displayedIndices = audioSources.length > 0 ? audioSources.map((_, idx) => idx) : [0];
+      hideScriptText = true;
+    }
+  }
 
   // Regex highlighting helper for terms inside occurrences
   const highlightText = (text: string, term: string) => {
@@ -520,33 +557,64 @@ export function KeyTermDetailPanel({
                   </div>
 
                   {/* Occurrences Audio Trigger + Script Text */}
-                  <div className="flex-1 flex items-start gap-3 mt-1.5">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handlePlayLoop(occ.id, occ.startTimeMs)}
-                      className={cn(
-                        "h-6 w-6 rounded-full border shrink-0 transition-colors cursor-pointer",
-                        activeLoopPlayId === occ.id
-                          ? "text-rose-500 border-rose-950/40 hover:bg-rose-950/20 bg-background/40 hover:text-rose-400"
-                          : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400",
-                      )}
-                      title={
-                        activeLoopPlayId === occ.id
-                          ? "Hentikan Pemutaran Loop"
-                          : "Putar Audio Loop"
-                      }
-                    >
-                      {activeLoopPlayId === occ.id ? (
-                        <Square className="h-2.5 w-2.5 fill-current" />
-                      ) : (
-                        <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
-                      )}
-                    </Button>
+                  <div className="flex-1 flex flex-col gap-2 mt-1">
+                    {displayedIndices.map((scriptIdx) => {
+                      const source = audioSources[scriptIdx];
+                      const sourceUrl = source?.url || "";
+                      const labelName = source ? source.name.replace(/\.wav$/i, "") : "";
 
-                    <p className="text-xs text-foreground leading-relaxed flex-1 pt-0.5">
-                      {highlightText(occ.scriptText, selectedTerm.term)}
-                    </p>
+                      let scriptText = "";
+                      if (occ.loop) {
+                        if (scriptIdx === 0) scriptText = occ.loop.script_text_1 || "";
+                        else if (scriptIdx === 1) scriptText = occ.loop.script_text_2 || "";
+                        else if (scriptIdx === 2) scriptText = occ.loop.script_text_3 || "";
+                        else if (scriptIdx === 3) scriptText = occ.loop.script_text_4 || "";
+                      } else {
+                        scriptText = occ.scriptText;
+                      }
+
+                      const isPlayingThis = activeLoopPlayId === occ.id && activeAudioUrl === sourceUrl;
+
+                      return (
+                        <div key={scriptIdx} className="flex items-start gap-3">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handlePlayLoop(occ.id, occ.startTimeMs, sourceUrl)}
+                            className={cn(
+                              "h-6 w-6 rounded-full border shrink-0 transition-colors cursor-pointer",
+                              isPlayingThis
+                                ? "text-rose-500 border-rose-950/40 hover:bg-rose-950/20 bg-background/40 hover:text-rose-400"
+                                : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400",
+                            )}
+                            title={isPlayingThis ? "Hentikan Pemutaran Loop" : `Putar Loop (${labelName})`}
+                          >
+                            {isPlayingThis ? (
+                              <Square className="h-2.5 w-2.5 fill-current" />
+                            ) : (
+                              <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
+                            )}
+                          </Button>
+
+                          <div className="flex flex-col flex-1 pt-0.5">
+                            {/* Label — always shown for all roles */}
+                            {labelName && (
+                              <span className="text-[9px] font-bold text-amber-500/80 uppercase tracking-wider leading-none mb-0.5">
+                                {labelName}
+                              </span>
+                            )}
+                            {/* Script text — hidden when hideScriptText */}
+                            {!hideScriptText && (
+                              <p className="text-xs text-foreground leading-relaxed">
+                                {highlightText(scriptText, selectedTerm.term) || (
+                                  <span className="text-muted-foreground/40 italic select-none">(Belum ada teks script)</span>
+                                )}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );

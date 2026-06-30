@@ -46,10 +46,13 @@ interface EditProjectClientProps {
     description: string | null;
     template_id: string;
     templates?: { name: string } | null;
+    show_text_script?: boolean;
+    allowed_scripts?: string;
   };
   templates: ProjectTemplate[];
   users: ProjectUser[];
   initialAssignedUserIds: string[];
+  audioTemplateNames: string[];
 }
 
 export function EditProjectClient({
@@ -57,6 +60,7 @@ export function EditProjectClient({
   templates,
   users,
   initialAssignedUserIds,
+  audioTemplateNames,
 }: EditProjectClientProps) {
   const router = useRouter();
   const [projectName, setProjectName] = useState(project.name);
@@ -67,6 +71,15 @@ export function EditProjectClient({
   const [assignedUsers, setAssignedUsers] = useState<string[]>(
     initialAssignedUserIds,
   );
+  const [showTextScript, setShowTextScript] = useState(
+    project.show_text_script || false,
+  );
+  const [allowedScripts, setAllowedScripts] = useState<string[]>(() => {
+    if (project.allowed_scripts) {
+      return project.allowed_scripts.split(",").filter(Boolean);
+    }
+    return audioTemplateNames;
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   const originalTemplateId = project.template_id;
@@ -126,6 +139,8 @@ export function EditProjectClient({
         projectDesc,
         assignedUsers,
         selectedTemplateId,
+        showTextScript,
+        allowedScripts.join(","),
       );
       // Redirect to /projects after save
       router.push("/projects");
@@ -242,6 +257,54 @@ export function EditProjectClient({
                 placeholder="Bahasa target, wilayah, atau catatan..."
                 className="h-9 text-sm rounded-lg bg-background border-border focus:ring-4 focus:ring-primary/10 placeholder:text-muted-foreground/30"
               />
+            </div>
+
+            {/* Toggle showTextScript and checklist for allowedScripts */}
+            <div className="pt-2.5 space-y-3.5 border-t border-border/50">
+              <label className="flex items-start gap-2.5 text-xs font-semibold text-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showTextScript}
+                  onChange={(e) => setShowTextScript(e.target.checked)}
+                  className="rounded border-border text-primary focus:ring-primary h-4 w-4 cursor-pointer mt-0.5"
+                />
+                <div className="flex flex-col gap-0.5">
+                  <span>Tampilkan Teks Script Audio ke Penerjemah</span>
+                  <span className="text-[10px] text-muted-foreground font-medium normal-case">
+                    Jika aktif, peran MTT, Fasilitator, dan Back Translator dapat melihat teks script template.
+                  </span>
+                </div>
+              </label>
+
+              {showTextScript && audioTemplateNames.length > 0 && (
+                <div className="pl-6 space-y-2 border-l-2 border-primary/40 ml-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest select-none">
+                    Script yang diizinkan untuk dilihat:
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {audioTemplateNames.map((name) => {
+                      const isChecked = allowedScripts.includes(name);
+                      return (
+                        <label key={name} className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              if (isChecked) {
+                                setAllowedScripts(allowedScripts.filter(n => n !== name));
+                              } else {
+                                setAllowedScripts([...allowedScripts, name]);
+                              }
+                            }}
+                            className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                          />
+                          <span>{name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

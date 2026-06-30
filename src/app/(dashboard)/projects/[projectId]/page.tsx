@@ -116,6 +116,28 @@ export default async function ProjectDetailsPage({ params }: PageProps) {
     redirect("/projects");
   }
 
+  // Safely fetch show_text_script and allowed_scripts from projects
+  let showTextScript = false;
+  let allowedScripts = "";
+  try {
+    const { data: dbProjSetting } = await supabase
+      .from("projects")
+      .select("show_text_script, allowed_scripts")
+      .eq("id", projectId)
+      .maybeSingle();
+
+    if (dbProjSetting) {
+      if (dbProjSetting.show_text_script !== undefined && dbProjSetting.show_text_script !== null) {
+        showTextScript = !!dbProjSetting.show_text_script;
+      }
+      if (dbProjSetting.allowed_scripts !== undefined && dbProjSetting.allowed_scripts !== null) {
+        allowedScripts = String(dbProjSetting.allowed_scripts);
+      }
+    }
+  } catch (err) {
+    console.warn("show_text_script or allowed_scripts columns could not be fetched:", err);
+  }
+
   // Supabase joins can return either a single object or an array depending on relationship metadata.
   const templatesRaw = rawProject.templates as unknown as
     | TemplateJoin
@@ -245,6 +267,9 @@ export default async function ProjectDetailsPage({ params }: PageProps) {
       project={project as unknown as Project}
       scenes={formattedScenes}
       isAdmin={isAdmin}
+      userRole={dbUser?.role || "user"}
+      showTextScript={showTextScript}
+      allowedScripts={allowedScripts}
     />
   );
 }

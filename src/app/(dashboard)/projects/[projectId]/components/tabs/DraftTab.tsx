@@ -14,7 +14,7 @@ interface DraftTabProps {
     note?: string;
   }>;
   activeLoopPlayId: string | null;
-  handlePlayLoop: (loopId: string, startMs: number) => void;
+  handlePlayLoop: (loopId: string, startMs: number, audioUrl?: string) => void;
   playingAudioId: string | null;
   handlePlayAudio: (url: string, recId: string) => void;
   isAdmin: boolean;
@@ -25,9 +25,11 @@ interface DraftTabProps {
   ) => void;
   handleDeleteRecording: (recId: string) => void;
   activeAudioUrl: string;
-  setActiveAudioUrl: (url: string) => void;
   handleSaveTranslation: (loopId: string, text: string) => void;
   onOpenRecordModal: (loopId: string, sceneId: string) => void;
+  isShowScriptAllowed: boolean;
+  showTextScript: boolean;
+  allowedScripts: string;
 }
 
 export function DraftTab({
@@ -43,11 +45,43 @@ export function DraftTab({
   handleStatusChange,
   handleDeleteRecording,
   activeAudioUrl,
-  setActiveAudioUrl,
   handleSaveTranslation,
   onOpenRecordModal,
+  isShowScriptAllowed,
+  showTextScript,
+  allowedScripts,
 }: DraftTabProps) {
   const audioSources = project.templates?.audio_sources || [];
+
+  const activeSource = audioSources.find((s) => s.url === activeAudioUrl);
+  const activeAudioLabel = activeSource
+    ? activeSource.name.replace(/\.wav$/i, "")
+    : "default_audio";
+
+  const allowedNames = allowedScripts ? allowedScripts.split(",").filter(Boolean) : [];
+  let displayedIndices: number[] = [];
+  let hideScriptText = false;
+
+  if (isShowScriptAllowed) {
+    // Admin/Consultant: always show ALL templates regardless of any setting
+    displayedIndices = audioSources.length > 0 ? audioSources.map((_, idx) => idx) : [0];
+  } else {
+    if (showTextScript) {
+      // User with access: only allowed templates, with text visible
+      audioSources.forEach((src, idx) => {
+        if (allowedNames.includes(src.name)) {
+          displayedIndices.push(idx);
+        }
+      });
+      if (displayedIndices.length === 0 && audioSources.length > 0) {
+        displayedIndices.push(0);
+      }
+    } else {
+      // User without access: show all template labels but hide script text
+      displayedIndices = audioSources.length > 0 ? audioSources.map((_, idx) => idx) : [0];
+      hideScriptText = true;
+    }
+  }
 
   return (
     <div className="divide-y divide-zinc-850">
@@ -55,78 +89,93 @@ export function DraftTab({
         <div className="grid grid-cols-2 gap-4 px-3.5 py-1.5 bg-muted/30 text-[10px] font-black uppercase tracking-wider text-foreground select-none text-center items-center">
           <div className="pr-4 border-r border-border flex items-center justify-center gap-1.5">
             <span className="text-muted-foreground font-bold uppercase tracking-wider text-[10px]">
-              Referensi:
+              Referensi: {activeAudioLabel}
             </span>
-            <select
-              value={activeAudioUrl}
-              onChange={(e) => {
-                setActiveAudioUrl(e.target.value);
-              }}
-              className="bg-background border border-border text-[10px] font-mono rounded px-2 py-0.5 text-foreground focus:outline-none focus:border-border cursor-pointer"
-            >
-              {audioSources.map((source) => (
-                <option key={source.name} value={source.url}>
-                  {source.name.replace(/\.wav$/i, "")}
-                </option>
-              ))}
-              {audioSources.length === 0 && (
-                <option value="">default_audio</option>
-              )}
-            </select>
           </div>
           <div className="pl-4 text-center">terjemahan anda</div>
         </div>
       )}
       {activeScene ? (
-        loopsWithDisplay.map(({ loop, text, note }) => {
+        loopsWithDisplay.map(({ loop, note }) => {
           const rec = loop.recording;
           return (
             <div
               key={loop.id}
               className="p-3.5 grid grid-cols-2 gap-4 hover:bg-muted/10 transition-colors"
             >
-              {/* Left Column: Play, Name, Text */}
-              <div className="flex items-start gap-4 pr-4 border-r border-border">
-                {/* Play Loop Button (simultaneous video, ref audio, and MNE) */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "h-6 w-6 rounded-full border shrink-0 mt-0.5 transition-colors cursor-pointer",
-                    activeLoopPlayId === loop.id
-                      ? "text-rose-500 border-rose-950/40 hover:bg-rose-950/20 bg-background/40 hover:text-rose-400"
-                      : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400",
-                  )}
-                  onClick={() => handlePlayLoop(loop.id, loop.start_time_ms)}
-                  title={
-                    activeLoopPlayId === loop.id
-                      ? "Hentikan Pemutaran Loop"
-                      : "Putar Loop (Video & Audio)"
-                  }
-                >
-                  {activeLoopPlayId === loop.id ? (
-                    <Square className="h-2.5 w-2.5 fill-current" />
-                  ) : (
-                    <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
-                  )}
-                </Button>
+              {/* Left Column: Play, Name, Text stack */}
+              <div className="flex flex-col gap-3 pr-4 border-r border-border justify-center">
+                {displayedIndices.map((scriptIdx) => {
+                  const source = audioSources[scriptIdx];
+                  const sourceUrl = source?.url || "";
+                  const labelName = source ? source.name.replace(/\.wav$/i, "") : "default_audio";
 
-                {/* Loop Name */}
-                <span className="text-xs font-bold text-muted-foreground font-mono shrink-0 select-none w-12 mt-1">
-                  {loop.name}
-                </span>
+                  let dbText = "";
+                  if (scriptIdx === 0) dbText = loop.script_text_1 || "";
+                  else if (scriptIdx === 1) dbText = loop.script_text_2 || "";
+                  else if (scriptIdx === 2) dbText = loop.script_text_3 || "";
+                  else if (scriptIdx === 3) dbText = loop.script_text_4 || "";
 
-                {/* Text & Alternate Notes */}
-                <div className="flex-1 space-y-1.5">
-                  <p className="text-xs text-foreground leading-relaxed font-semibold">
-                    {text}
-                  </p>
-                  {note && (
-                    <p className="text-[10px] text-muted-foreground leading-relaxed pl-3 border-l border-border font-medium">
-                      {note}
-                    </p>
-                  )}
-                </div>
+                  const isPlayingThis = activeLoopPlayId === loop.id && activeAudioUrl === sourceUrl;
+
+                  return (
+                    <div key={scriptIdx} className="flex items-start gap-4">
+                      {/* Play Loop Button */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-6 w-6 rounded-full border shrink-0 mt-0.5 transition-colors cursor-pointer",
+                          isPlayingThis
+                            ? "text-rose-500 border-rose-950/40 hover:bg-rose-950/20 bg-background/40 hover:text-rose-400"
+                            : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400",
+                        )}
+                        onClick={() => handlePlayLoop(loop.id, loop.start_time_ms, sourceUrl)}
+                        title={
+                          isPlayingThis
+                            ? "Hentikan Pemutaran Loop"
+                            : `Putar Loop (${labelName})`
+                        }
+                      >
+                        {isPlayingThis ? (
+                          <Square className="h-2.5 w-2.5 fill-current" />
+                        ) : (
+                          <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
+                        )}
+                      </Button>
+
+                      {/* Loop Name & Template Label — always shown for all roles */}
+                      <div className="flex flex-col shrink-0 select-none w-12 mt-0.5">
+                        <span className="text-xs font-bold text-muted-foreground font-mono leading-none">
+                          {loop.name}
+                        </span>
+                        {labelName && (
+                          <span className="text-[9px] font-bold text-amber-500/80 uppercase tracking-wider leading-relaxed">
+                            {labelName}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Script Text & Notes — hidden only when hideScriptText */}
+                      {!hideScriptText && (
+                        <div className="flex-1 space-y-1.5">
+                          <p className="text-xs text-foreground leading-relaxed font-semibold">
+                            {dbText || (
+                              <span className="text-muted-foreground/45 italic select-none">
+                                (Belum ada teks draf)
+                              </span>
+                            )}
+                          </p>
+                          {note && (
+                            <p className="text-[10px] text-muted-foreground leading-relaxed pl-3 border-l border-border font-medium">
+                              {note}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Right Column: Record and Results/Input */}
@@ -141,7 +190,7 @@ export function DraftTab({
                       className="h-6 w-6 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-lg transition-transform hover:scale-105 active:scale-95 group"
                       title="Rekam Loop"
                     >
-                      <span className="w-2 h-2 rounded-full bg-white group-hover:scale-110 transition-transform" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-white group-hover:scale-110 transition-transform" />
                     </button>
 
                     {/* Play/Stop Button */}

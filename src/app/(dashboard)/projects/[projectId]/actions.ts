@@ -33,7 +33,15 @@ export async function deleteRecording(projectId: string, recordingId: string) {
   revalidatePath(`/projects/${projectId}`)
 }
 
-export async function updateProject(projectId: string, name: string, description: string, assignedUserIds: string[], templateId?: string) {
+export async function updateProject(
+  projectId: string,
+  name: string,
+  description: string,
+  assignedUserIds: string[],
+  templateId?: string,
+  showTextScript?: boolean,
+  allowedScripts?: string
+) {
   const supabase = await createClient()
 
   if (!name) {
@@ -57,6 +65,26 @@ export async function updateProject(projectId: string, name: string, description
 
   if (projectError) {
     throw new Error(projectError.message)
+  }
+
+  // Safely update show_text_script and allowed_scripts inside try-catch to support missing database columns
+  try {
+    const extraPayload: Record<string, unknown> = {};
+    if (showTextScript !== undefined) {
+      extraPayload.show_text_script = showTextScript;
+    }
+    if (allowedScripts !== undefined) {
+      extraPayload.allowed_scripts = allowedScripts;
+    }
+
+    if (Object.keys(extraPayload).length > 0) {
+      await supabase
+        .from('projects')
+        .update(extraPayload)
+        .eq('id', projectId);
+    }
+  } catch (err) {
+    console.warn("Could not update show_text_script or allowed_scripts columns. They might not exist in the database yet.", err);
   }
 
   // Delete current assignments

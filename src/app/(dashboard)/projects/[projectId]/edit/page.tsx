@@ -37,12 +37,60 @@ export default async function EditProjectPage({ params }: PageProps) {
   // Fetch project details
   const { data: project } = await supabase
     .from("projects")
-    .select("id, name, description, template_id, templates(name)")
+    .select("id, name, description, template_id, templates(name, audio_label_1, audio_label_2, audio_label_3, audio_label_4)")
     .eq("id", projectId)
     .maybeSingle();
 
   if (!project) {
     redirect("/projects");
+  }
+
+  // Safely fetch show_text_script and allowed_scripts from projects
+  let showTextScript = false;
+  let allowedScripts = "";
+  try {
+    const { data: dbProjSetting } = await supabase
+      .from("projects")
+      .select("show_text_script, allowed_scripts")
+      .eq("id", projectId)
+      .maybeSingle();
+
+    if (dbProjSetting) {
+      if (dbProjSetting.show_text_script !== undefined && dbProjSetting.show_text_script !== null) {
+        showTextScript = !!dbProjSetting.show_text_script;
+      }
+      if (dbProjSetting.allowed_scripts !== undefined && dbProjSetting.allowed_scripts !== null) {
+        allowedScripts = String(dbProjSetting.allowed_scripts);
+      }
+    }
+  } catch (err) {
+    console.warn("show_text_script or allowed_scripts columns could not be fetched:", err);
+  }
+
+  // Get active templates raw join
+  const templatesRaw = project.templates as unknown as {
+    name: string;
+    audio_label_1: string | null;
+    audio_label_2: string | null;
+    audio_label_3: string | null;
+    audio_label_4: string | null;
+  } | {
+    name: string;
+    audio_label_1: string | null;
+    audio_label_2: string | null;
+    audio_label_3: string | null;
+    audio_label_4: string | null;
+  }[] | null;
+  const t = Array.isArray(templatesRaw) ? templatesRaw[0] : templatesRaw;
+  const audioTemplateNames: string[] = [];
+  if (t) {
+    audioTemplateNames.push(t.audio_label_1 || "TB");
+    audioTemplateNames.push(t.audio_label_2 || "BIMK");
+    if (t.audio_label_3) audioTemplateNames.push(t.audio_label_3);
+    if (t.audio_label_4) audioTemplateNames.push(t.audio_label_4);
+  } else {
+    audioTemplateNames.push("TB");
+    audioTemplateNames.push("BIMK");
   }
 
   // Fetch all templates
@@ -67,16 +115,27 @@ export default async function EditProjectPage({ params }: PageProps) {
 
   return (
     <EditProjectClient
-      project={project as unknown as {
+      project={{
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        template_id: project.template_id,
+        templates: t ? { name: t.name } : null,
+        show_text_script: showTextScript,
+        allowed_scripts: allowedScripts,
+      } as {
         id: string;
         name: string;
         description: string | null;
         template_id: string;
-        templates: { name: string } | null;
+        templates?: { name: string } | null;
+        show_text_script?: boolean;
+        allowed_scripts?: string;
       }}
       templates={(templates || []) as ProjectTemplate[]}
       users={(users || []) as ProjectUser[]}
       initialAssignedUserIds={assignedUserIds}
+      audioTemplateNames={audioTemplateNames}
     />
   );
 }

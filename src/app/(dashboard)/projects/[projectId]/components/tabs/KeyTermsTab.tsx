@@ -11,8 +11,14 @@ interface KeyTermsTabProps {
   activeScene: Scene | null;
   projectId: string;
   onSaveStateChange?: (status: "saving" | "saved" | "idle") => void;
-  handlePlayLoop: (loopId: string, startMs: number) => void;
+  handlePlayLoop: (loopId: string, startMs: number, audioUrl?: string) => void;
   activeLoopPlayId: string | null;
+  isShowScriptAllowed: boolean;
+  selectedScripts: number[];
+  showTextScript: boolean;
+  allowedScripts: string;
+  audioSources: Array<{ name: string; url: string }>;
+  activeAudioUrl: string;
 }
 
 export function KeyTermsTab({
@@ -21,6 +27,12 @@ export function KeyTermsTab({
   onSaveStateChange,
   handlePlayLoop,
   activeLoopPlayId,
+  isShowScriptAllowed,
+  selectedScripts,
+  showTextScript,
+  allowedScripts,
+  audioSources,
+  activeAudioUrl,
 }: KeyTermsTabProps) {
   const [selectedTerm, setSelectedTerm] = useState<TermItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -285,6 +297,12 @@ export function KeyTermsTab({
             isSaving={isSavingActive}
             handlePlayLoop={handlePlayLoop}
             activeLoopPlayId={activeLoopPlayId}
+            isShowScriptAllowed={isShowScriptAllowed}
+            selectedScripts={selectedScripts}
+            showTextScript={showTextScript}
+            allowedScripts={allowedScripts}
+            audioSources={audioSources}
+            activeAudioUrl={activeAudioUrl}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-xs select-none italic">

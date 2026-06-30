@@ -4,9 +4,20 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { ChevronLeft, ChevronRight, ShieldCheck, Loader2, Check } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ShieldCheck,
+  Loader2,
+  Check,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   updateRecordingStatus,
   deleteRecording,
@@ -88,6 +99,9 @@ interface ProjectClientProps {
   project: Project;
   scenes: Scene[];
   isAdmin: boolean;
+  userRole?: string;
+  showTextScript?: boolean;
+  allowedScripts?: string;
 }
 
 export interface Note {
@@ -100,7 +114,20 @@ export interface Note {
 
 const getFormattedDateTime = (date: Date = new Date()): string => {
   const day = String(date.getDate()).padStart(2, "0");
-  const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "Mei",
+    "Jun",
+    "Jul",
+    "Agu",
+    "Sep",
+    "Okt",
+    "Nov",
+    "Des",
+  ];
   const month = months[date.getMonth()];
   const year = date.getFullYear();
   const hours = String(date.getHours()).padStart(2, "0");
@@ -113,8 +140,20 @@ export function ProjectClient({
   project,
   scenes,
   isAdmin,
+  userRole = "user",
+  showTextScript = false,
+  allowedScripts = "",
 }: ProjectClientProps) {
   // State
+  const roleLower = userRole.toLowerCase();
+  const isShowScriptAllowed =
+    isAdmin || roleLower === "konsultan" || roleLower === "consultant";
+
+  const audioSources = project.templates?.audio_sources || [];
+  const [selectedScripts, setSelectedScripts] = useState<number[]>(() => {
+    if (audioSources.length > 0) return [0];
+    return [];
+  });
   const [localScenes, setLocalScenes] = useState<Scene[]>(scenes);
   const router = useRouter();
 
@@ -188,7 +227,6 @@ export function ProjectClient({
   const [videoTimecode, setVideoTimecode] = useState("00:00:00:00");
 
   // Audio reference selection
-  const audioSources = project.templates?.audio_sources || [];
   const [activeAudioUrl, setActiveAudioUrl] = useState<string>(() => {
     if (audioSources.length > 0) return audioSources[0].url;
     return project.templates?.audio_url || "";
@@ -487,11 +525,21 @@ export function ProjectClient({
     }
   };
 
-  const handlePlayLoop = (loopId: string, startMs: number) => {
+  const handlePlayLoop = (
+    loopId: string,
+    startMs: number,
+    audioUrl?: string,
+  ) => {
     const video = videoRef.current;
     if (!video) return;
 
-    if (activeLoopPlayId === loopId) {
+    // Check if the audioUrl parameter is provided and differs from activeAudioUrl
+    const isAudioChanging = audioUrl && audioUrl !== activeAudioUrl;
+    if (isAudioChanging) {
+      setActiveAudioUrl(audioUrl);
+    }
+
+    if (activeLoopPlayId === loopId && !isAudioChanging) {
       // Stop playback
       video.pause();
       setIsVideoPlaying(false);
@@ -755,36 +803,89 @@ export function ProjectClient({
           </div>
         </div>
 
-        {/* Center: Scene Selector Switcher */}
-        {sortedScenes.length > 0 && (
-          <div className="flex items-center gap-2 bg-background border border-border px-3 py-1 rounded text-xs select-none">
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-              onClick={() =>
-                setActiveSceneIndex((prev) => Math.max(0, prev - 1))
-              }
-              disabled={activeSceneIndex === 0}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="font-black text-foreground px-2 tracking-wide uppercase">
-              {activeSceneIndex + 1} - {activeScene?.name || "Scene"}
-            </span>
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground disabled:opacity-30"
-              onClick={() =>
-                setActiveSceneIndex((prev) =>
-                  Math.min(sortedScenes.length - 1, prev + 1),
-                )
-              }
-              disabled={activeSceneIndex === sortedScenes.length - 1}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        )}
+        {/* Center: Scene Selector Switcher & Show Script */}
+        <div className="flex items-center gap-3">
+          {sortedScenes.length > 0 && (
+            <div className="flex items-center gap-2 bg-background border border-border px-3 py-1 rounded text-xs select-none">
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                onClick={() =>
+                  setActiveSceneIndex((prev) => Math.max(0, prev - 1))
+                }
+                disabled={activeSceneIndex === 0}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="font-black text-foreground px-2 tracking-wide uppercase">
+                {activeSceneIndex + 1} - {activeScene?.name || "Scene"}
+              </span>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                onClick={() =>
+                  setActiveSceneIndex((prev) =>
+                    Math.min(sortedScenes.length - 1, prev + 1),
+                  )
+                }
+                disabled={activeSceneIndex === sortedScenes.length - 1}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Show Script Multi Select Popover (Only for Admin & Consultant) */}
+          {isShowScriptAllowed && audioSources.length > 0 && (
+            <Popover>
+              <PopoverTrigger className="h-8 px-3 text-xs font-bold gap-1.5 bg-background border border-border hover:bg-secondary rounded-md inline-flex items-center cursor-pointer">
+                Show Script
+                <span className="ml-1.5 text-[10px] bg-primary/20 text-primary border border-primary/25 px-1.5 py-0.5 rounded-full font-mono font-bold">
+                  {selectedScripts.length}
+                </span>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-48 p-2 flex flex-col gap-1 bg-card border border-border rounded-lg shadow-lg"
+                align="center"
+              >
+                <div className="text-[10px] font-black uppercase tracking-wider text-muted-foreground px-2.5 py-1.5 border-b border-border/40 select-none">
+                  Pilih Script
+                </div>
+                {audioSources.map((source, index) => {
+                  const isSelected = selectedScripts.includes(index);
+                  return (
+                    <label
+                      key={source.name}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer text-xs select-none"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {
+                          if (isSelected) {
+                            if (selectedScripts.length > 1) {
+                              setSelectedScripts(
+                                selectedScripts.filter((i) => i !== index),
+                              );
+                            }
+                          } else {
+                            setSelectedScripts(
+                              [...selectedScripts, index].sort((a, b) => a - b),
+                            );
+                          }
+                        }}
+                        className="rounded border-border text-primary focus:ring-primary h-3.5 w-3.5"
+                      />
+                      <span className="font-semibold text-foreground">
+                        {source.name.replace(/\.wav$/i, "")}
+                      </span>
+                    </label>
+                  );
+                })}
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
 
         {/* Right side: Global Save Status Info */}
         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground select-none font-medium pr-1">
@@ -880,14 +981,16 @@ export function ProjectClient({
                   handleStatusChange={handleStatusChange}
                   handleDeleteRecording={handleDeleteRecording}
                   activeAudioUrl={activeAudioUrl}
-                  setActiveAudioUrl={setActiveAudioUrl}
                   handleSaveTranslation={handleSaveTranslation}
                   onOpenRecordModal={handleOpenRecordModal}
+                  isShowScriptAllowed={isShowScriptAllowed}
+                  showTextScript={showTextScript}
+                  allowedScripts={allowedScripts}
                 />
               )}
 
               {activeTab === "keyTerms" && (
-              <KeyTermsTab
+                <KeyTermsTab
                   activeScene={activeScene}
                   projectId={project.id}
                   handlePlayLoop={handlePlayLoop}
@@ -898,6 +1001,12 @@ export function ProjectClient({
                       setLastSavedTime(getFormattedDateTime());
                     }
                   }}
+                  isShowScriptAllowed={isShowScriptAllowed}
+                  selectedScripts={selectedScripts}
+                  showTextScript={showTextScript}
+                  allowedScripts={allowedScripts}
+                  audioSources={audioSources}
+                  activeAudioUrl={activeAudioUrl}
                 />
               )}
 
@@ -923,6 +1032,10 @@ export function ProjectClient({
                   handlePlayLoop={handlePlayLoop}
                   onSaveBackTranslation={handleSaveBackTranslation}
                   isLoading={isLoading}
+                  activeAudioUrl={activeAudioUrl}
+                  isShowScriptAllowed={isShowScriptAllowed}
+                  showTextScript={showTextScript}
+                  allowedScripts={allowedScripts}
                 />
               )}
             </div>

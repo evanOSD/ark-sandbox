@@ -4,13 +4,6 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { Play, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Scene, Loop } from "../../ProjectClient";
 
 interface AudioSource {
@@ -22,9 +15,13 @@ interface ConsultTabProps {
   activeScene: Scene | null;
   audioSources: AudioSource[];
   activeLoopPlayId: string | null;
-  handlePlayLoop: (loopId: string, startMs: number) => void;
+  handlePlayLoop: (loopId: string, startMs: number, audioUrl?: string) => void;
   onSaveBackTranslation: (loopId: string, text: string) => Promise<void>;
   isLoading: boolean;
+  activeAudioUrl: string;
+  isShowScriptAllowed: boolean;
+  showTextScript: boolean;
+  allowedScripts: string;
 }
 
 /** Pick the correct script_text_N for a loop based on the audio source index */
@@ -43,20 +40,36 @@ export function ConsultTab({
   handlePlayLoop,
   onSaveBackTranslation,
   isLoading,
+  activeAudioUrl,
+  isShowScriptAllowed,
+  showTextScript,
+  allowedScripts,
 }: ConsultTabProps) {
-  // Script picker — own state independent of DraftTab
-  const [selectedSourceUrl, setSelectedSourceUrl] = useState<string>(() =>
-    audioSources.length > 0 ? audioSources[0].url : "",
-  );
+  // Determine which script indices to render based on role/settings
+  const allowedNames = allowedScripts ? allowedScripts.split(",").filter(Boolean) : [];
+  let displayedIndices: number[] = [];
+  let hideScriptText = false;
 
-  const selectedSourceIndex = useMemo(
-    () =>
-      Math.max(
-        0,
-        audioSources.findIndex((s) => s.url === selectedSourceUrl),
-      ),
-    [audioSources, selectedSourceUrl],
-  );
+  if (isShowScriptAllowed) {
+    // Admin/Consultant: always show ALL templates regardless of any setting
+    displayedIndices = audioSources.length > 0 ? audioSources.map((_, idx) => idx) : [0];
+  } else {
+    if (showTextScript) {
+      // User with access: only allowed templates, with text visible
+      audioSources.forEach((src, idx) => {
+        if (allowedNames.includes(src.name)) {
+          displayedIndices.push(idx);
+        }
+      });
+      if (displayedIndices.length === 0 && audioSources.length > 0) {
+        displayedIndices.push(0);
+      }
+    } else {
+      // User without access: show all template labels but hide script text
+      displayedIndices = audioSources.length > 0 ? audioSources.map((_, idx) => idx) : [0];
+      hideScriptText = true;
+    }
+  }
 
   // Local state for back_translation textarea
   const [localInputs, setLocalInputs] = useState<Record<string, string>>({});
@@ -84,52 +97,20 @@ export function ConsultTab({
     }
   };
 
-  const getAudioSourceLabel = (value: string | null) => {
-    if (!value) return "Pilih Audio";
-    const selected = audioSources.find((source) => source.url === value);
-    return selected?.name.replace(/\.wav$/i, "") || "default_audio";
-  };
-
   return (
     <div className="divide-y divide-zinc-850">
-      {/* Header — script text picker */}
+      {/* Header row */}
       {activeScene && (
         <div className="px-3.5 py-1.5 bg-muted/30 text-[10px] font-black uppercase tracking-wider text-foreground select-none flex items-center gap-2">
           <span className="text-muted-foreground font-bold uppercase tracking-wider text-[10px]">
-            Script:
+            Konsultasi
           </span>
-          <Select
-            value={selectedSourceUrl}
-            onValueChange={(val) => {
-              if (val) setSelectedSourceUrl(val);
-            }}
-          >
-            <SelectTrigger
-              size="sm"
-              className="h-6 text-[10px] font-mono border-border bg-background min-w-[100px] cursor-pointer"
-            >
-              <SelectValue placeholder="Pilih Audio">
-                {(value) => getAudioSourceLabel(value)}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {audioSources.map((source) => (
-                <SelectItem key={source.url} value={source.url}>
-                  {source.name.replace(/\.wav$/i, "")}
-                </SelectItem>
-              ))}
-              {audioSources.length === 0 && (
-                <SelectItem value="">default_audio</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
         </div>
       )}
 
       {activeScene ? (
         loops.map((loop) => {
           const rec = loop.recording;
-          const scriptText = getScriptTextForIndex(loop, selectedSourceIndex);
 
           // back_translation — same value as BackTranslateTab
           const dbBackTranslation = rec?.back_translation || "";
@@ -141,56 +122,72 @@ export function ConsultTab({
           return (
             <div
               key={loop.id}
-              className="px-3.5 py-3 hover:bg-muted/10 transition-colors space-y-1.5"
+              className="px-3.5 py-3 hover:bg-muted/10 transition-colors space-y-2"
             >
-              {/* Top row: Play + Loop name + Script text (read-only) */}
-              <div className="flex items-start gap-3">
-                {/* Play button */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "h-6 w-6 rounded-full border shrink-0 mt-0.5 transition-colors cursor-pointer",
-                    activeLoopPlayId === loop.id
-                      ? "text-rose-500 border-rose-950/40 hover:bg-rose-950/20 bg-background/40 hover:text-rose-400"
-                      : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400",
-                  )}
-                  onClick={() => handlePlayLoop(loop.id, loop.start_time_ms)}
-                  title={
-                    activeLoopPlayId === loop.id
-                      ? "Hentikan Pemutaran Loop"
-                      : "Putar Loop (Video & Audio)"
-                  }
-                >
-                  {activeLoopPlayId === loop.id ? (
-                    <Square className="h-2.5 w-2.5 fill-current" />
-                  ) : (
-                    <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
-                  )}
-                </Button>
+              {/* Script rows — one per displayed template */}
+              <div className="space-y-1.5">
+                {displayedIndices.map((scriptIdx) => {
+                  const source = audioSources[scriptIdx];
+                  const sourceUrl = source?.url || "";
+                  const labelName = source ? source.name.replace(/\.wav$/i, "") : "";
+                  const scriptText = getScriptTextForIndex(loop, scriptIdx);
+                  const isPlayingThis = activeLoopPlayId === loop.id && activeAudioUrl === sourceUrl;
 
-                {/* Loop name */}
-                <span className="text-[10px] font-bold font-mono text-muted-foreground shrink-0 mt-1.5 w-10">
-                  {loop.name}
-                </span>
+                  return (
+                    <div key={scriptIdx} className="flex items-start gap-3">
+                      {/* Play button */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-6 w-6 rounded-full border shrink-0 mt-0.5 transition-colors cursor-pointer",
+                          isPlayingThis
+                            ? "text-rose-500 border-rose-950/40 hover:bg-rose-950/20 bg-background/40 hover:text-rose-400"
+                            : "text-emerald-500 border-emerald-950/40 hover:bg-emerald-950/20 bg-background/40 hover:text-emerald-400",
+                        )}
+                        onClick={() => handlePlayLoop(loop.id, loop.start_time_ms, sourceUrl)}
+                        title={isPlayingThis ? "Hentikan Pemutaran Loop" : `Putar Loop (${labelName})`}
+                      >
+                        {isPlayingThis ? (
+                          <Square className="h-2.5 w-2.5 fill-current" />
+                        ) : (
+                          <Play className="h-2.5 w-2.5 fill-current ml-0.5" />
+                        )}
+                      </Button>
 
-                {/* Script text (read-only) */}
-                <p className="text-xs text-foreground leading-relaxed font-medium select-text flex-1">
-                  {scriptText || (
-                    <span className="text-muted-foreground/40 italic select-none">
-                      (Belum ada teks script)
-                    </span>
-                  )}
-                </p>
+                      {/* Loop name & Label — always shown for all roles */}
+                      <div className="flex flex-col shrink-0 select-none w-10 mt-0.5">
+                        <span className="text-[10px] font-bold font-mono text-muted-foreground leading-none">
+                          {loop.name}
+                        </span>
+                        {labelName && (
+                          <span className="text-[9px] font-bold text-amber-500/80 uppercase tracking-wider leading-relaxed">
+                            {labelName}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Script text (read-only) — hidden when hideScriptText */}
+                      {!hideScriptText && (
+                        <p className="text-xs text-foreground leading-relaxed font-medium select-text flex-1 mt-0.5">
+                          {scriptText || (
+                            <span className="text-muted-foreground/40 italic select-none">
+                              (Belum ada teks script)
+                            </span>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Bottom row: aligned spacer + back translation textarea */}
-              <div className="flex items-start gap-3">
-                {/* Spacer — matches play button width */}
-                <div className="w-6 shrink-0" />
-
-                {/* Back label aligns where Loop name is */}
-                <span className="text-[9px] font-bold tracking-wider uppercase text-muted-foreground/60 shrink-0 mt-1.5 w-10 text-center select-none"></span>
+              {/* Back translation textarea row */}
+              <div className="flex items-start gap-3 pl-9">
+                {/* "Terjemahan Balik" label */}
+                <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/70 shrink-0 mt-2 w-20 text-right select-none leading-tight">
+                  Terjemahan<br />Balik
+                </span>
 
                 {/* Back translation textarea */}
                 <textarea
@@ -232,3 +229,4 @@ export function ConsultTab({
     </div>
   );
 }
+

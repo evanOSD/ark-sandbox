@@ -62,6 +62,12 @@ export interface OccurrenceItem {
   startTimeMs: number;
   lips: string;
   avatar: string;
+  loop?: {
+    script_text_1?: string | null;
+    script_text_2?: string | null;
+    script_text_3?: string | null;
+    script_text_4?: string | null;
+  };
 }
 
 export interface CategoryItem {
